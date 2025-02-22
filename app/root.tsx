@@ -8,7 +8,7 @@ import {
 } from "react-router";
 
 import { rootAuthLoader } from '@clerk/react-router/ssr.server'
-
+import '@fontsource/roboto/400.css';
 import type { Route } from "./+types/root";
 import "./app.css";
 
@@ -40,8 +40,6 @@ export default function App({ loaderData }: Route.ComponentProps) {
     </ClerkProvider>
   )
 }
-
-// Rest of the root.tsx code
 
 
 export const links: Route.LinksFunction = () => [
