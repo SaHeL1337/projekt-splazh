@@ -11,9 +11,10 @@ import { rootAuthLoader } from '@clerk/react-router/ssr.server'
 import '@fontsource/roboto/400.css';
 import type { Route } from "./+types/root";
 import "./app.css";
+import Search from "./components/Button";
 
 import { ClerkProvider, SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/react-router'
-
+ 
 export async function loader(args: Route.LoaderArgs) {
   return rootAuthLoader(args)
 }
@@ -21,12 +22,15 @@ export async function loader(args: Route.LoaderArgs) {
 
 export default function App({ loaderData }: Route.ComponentProps) {
   return (
-    <ClerkProvider
+    
+    <ClerkProvider 
       loaderData={loaderData}
       signUpFallbackRedirectUrl="/"
       signInFallbackRedirectUrl="/"
     >
       <header className="flex items-center justify-center py-8 px-4">
+        
+      
         <SignedOut>
           <SignInButton />
         </SignedOut>
@@ -35,25 +39,13 @@ export default function App({ loaderData }: Route.ComponentProps) {
         </SignedIn>
       </header>
       <main>
+      <Search /> 
         <Outlet />
       </main>
     </ClerkProvider>
   )
 }
 
-
-export const links: Route.LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
-];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (

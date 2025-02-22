@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { CardAlert } from './CardAlert';
 
 function Post() {
   const [data, setData] = useState(null);
@@ -13,7 +12,6 @@ function Post() {
 
   return (
     <div>
-      <CardAlert  />
       {data ? <pre>{JSON.stringify(data, null, 2)}</pre> : 'Loading...'}
     </div>
   );
