@@ -1,6 +1,5 @@
 import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
-import   Post   from "../components/post"
+import { Login2 } from "../welcome/login";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,8 +8,7 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export default function Home({ loaderData }: Route.ComponentProps) {
-  return (
-    <Post />
-  );
+
+export default function Home() {
+  return <Login2 />;
 }
