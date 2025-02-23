@@ -8,15 +8,18 @@ import { Breadcrumb } from 'antd';
 const { Header } = Layout;
 
 import  UserComponent  from '../components/User';
-import Auth from '../components/Auth';
+import { useAuth } from '@clerk/clerk-react';
 
 export default function MyHeader(){
   const [tokens, setTokens] = React.useState(0);
-
+  const { isLoaded, isSignedIn, userId, sessionId, getToken } = useAuth()
+  
   React.useEffect(() => {
-    FetchWithAuth('https://jsonplaceholder.typicode.com/todos/1', "abc", {}).then(data => {
+    (async () => {
+      const token = await getToken();
+      const data = await FetchWithAuth('https://jsonplaceholder.typicode.com/todos/1', token, {});
       setTokens(data.id);
-    });
+    })();
   }, []);
 
 
@@ -28,7 +31,6 @@ export default function MyHeader(){
       </Col>
       <Col className="userNavigation" span={2}>
         <UserComponent/> 
-        <Auth></Auth>
       </Col>
       <Col className="userNavigation" span={1}>
         <Space size="small">

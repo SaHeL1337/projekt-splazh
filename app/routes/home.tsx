@@ -2,6 +2,8 @@ import type { Route } from "./+types/home";
 import { Row, Col } from 'antd';
 import Search from '../components/Search';
 
+import { rootAuthLoader } from '@clerk/react-router/ssr.server';
+
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "New React Router App2" },
@@ -9,7 +11,9 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
+
 export default function Home({ loaderData }: Route.ComponentProps) {
+
   return (
     <Row justify="center">
     <Col span={8}>
