@@ -1,5 +1,6 @@
 import {
   isRouteErrorResponse,
+  Link,
   Links,
   Meta,
   Outlet,
@@ -11,7 +12,19 @@ import { rootAuthLoader } from '@clerk/react-router/ssr.server'
 import '@fontsource/roboto/400.css';
 import type { Route } from "./+types/root";
 import "./app.css";
-import Search from "./components/Button";
+import { Breadcrumb, Layout as L,Row, theme } from 'antd';
+import { UploadOutlined, UserOutlined, VideoCameraOutlined, NotificationOutlined, SettingOutlined } from '@ant-design/icons';
+const { Header, Content, Footer, Sider } = L;
+import { ConfigProvider } from 'antd';
+import React from 'react';
+
+
+import { Input } from 'antd';
+
+import MyFooter from './components/Footer';
+import Menu from './components/Menu';
+import Search from './components/Search';
+import MyHeader from './components/Header';
 
 import { ClerkProvider, SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/react-router'
  
@@ -19,30 +32,39 @@ export async function loader(args: Route.LoaderArgs) {
   return rootAuthLoader(args)
 }
 
-
 export default function App({ loaderData }: Route.ComponentProps) {
+  
   return (
-    
-    <ClerkProvider 
-      loaderData={loaderData}
-      signUpFallbackRedirectUrl="/"
-      signInFallbackRedirectUrl="/"
-    >
-      <header className="flex items-center justify-center py-8 px-4">
-        
-      
-        <SignedOut>
-          <SignInButton />
-        </SignedOut>
-        <SignedIn>
-          <UserButton />
-        </SignedIn>
-      </header>
-      <main>
-      <Search /> 
-        <Outlet />
-      </main>
-    </ClerkProvider>
+    <ConfigProvider
+    theme={{
+      token: {
+        fontSize: 15,
+      },
+      algorithm: theme.defaultAlgorithm,
+      components: {
+        Layout: {
+          headerBg: '#fff',
+        }
+      }
+    }}>
+     <L style={{height:"100vh"}}>
+      <Menu/>
+      <L className="layout">
+        <MyHeader/>
+        <Content className="content" style={{ margin: '24px 16px 0'}}>
+          <div
+            style={{
+              padding: 24,
+              minHeight: 360,
+            }}
+          >
+          <Outlet />
+          </div>
+        </Content>
+        <MyFooter />
+      </L>
+    </L>
+  </ConfigProvider>
   )
 }
 
