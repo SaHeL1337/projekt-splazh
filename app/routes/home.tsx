@@ -1,6 +1,4 @@
 import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
-import   Post   from "../components/post"
 import { Row, Col } from 'antd';
 import Search from '../components/Search';
 

@@ -1,6 +1,5 @@
 import {
   isRouteErrorResponse,
-  Link,
   Links,
   Meta,
   Outlet,
@@ -12,33 +11,32 @@ import { rootAuthLoader } from '@clerk/react-router/ssr.server'
 import '@fontsource/roboto/400.css';
 import type { Route } from "./+types/root";
 import "./app.css";
-import { Breadcrumb, Layout as L,Row, theme } from 'antd';
-import { UploadOutlined, UserOutlined, VideoCameraOutlined, NotificationOutlined, SettingOutlined } from '@ant-design/icons';
-const { Header, Content, Footer, Sider } = L;
+import { Layout as L, theme } from 'antd';
+const { Content } = L;
 import { ConfigProvider } from 'antd';
 import React from 'react';
 
-
-import { Input } from 'antd';
-
 import MyFooter from './components/Footer';
 import Menu from './components/Menu';
-import Search from './components/Search';
 import MyHeader from './components/Header';
 
-import { ClerkProvider, SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/react-router'
- 
+import { ClerkProvider } from '@clerk/react-router'
+
 export async function loader(args: Route.LoaderArgs) {
-  return rootAuthLoader(args)
+  return rootAuthLoader(args);
 }
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  
   return (
+    <ClerkProvider
+      loaderData={loaderData}
+      signUpFallbackRedirectUrl="/"
+      signInFallbackRedirectUrl="/"
+    >
     <ConfigProvider
     theme={{
       token: {
-        fontSize: 16,
+        fontSize: 15,
       },
       algorithm: theme.defaultAlgorithm,
       components: {
@@ -65,6 +63,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
       </L>
     </L>
   </ConfigProvider>
+  </ClerkProvider>
   )
 }
 
