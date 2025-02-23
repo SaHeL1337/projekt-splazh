@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/", handler.Handler)
-	http.HandleFunc("/test", handler.Test)
+	http.HandleFunc("/api/index", handler.Handler)
+	http.HandleFunc("/api/test", handler.Test)
 
 	err := http.ListenAndServe(":3333", nil)
 	if err != nil {

@@ -4,6 +4,10 @@ function FetchWithAuth(url: string | URL | Request, token: string | null, option
     if (options === undefined) {
         options = {};
     }
+    if (window.location.href === "http://localhost:5173/") {
+        url = "http://localhost:3333" + url;
+    }
+
     return fetch(url, {
         ...options,
         headers: {
