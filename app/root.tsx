@@ -38,7 +38,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
     <ConfigProvider
     theme={{
       token: {
-        fontSize: 15,
+        fontSize: 16,
       },
       algorithm: theme.defaultAlgorithm,
       components: {
