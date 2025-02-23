@@ -12,7 +12,7 @@ import (
 )
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(os.Getenv("CLERK_SECRET_KEY"))
+
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization")

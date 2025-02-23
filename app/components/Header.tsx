@@ -17,7 +17,7 @@ export default function MyHeader(){
   React.useEffect(() => {
     (async () => {
       const token = await getToken();
-      const data = await FetchWithAuth('http://localhost:3333', token, {});
+      const data = await FetchWithAuth('https://projekt-splazh.vercel.app/api/index', token, {});
       setTokens(data.user_id);
     })();
   }, []);
