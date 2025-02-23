@@ -1,7 +1,6 @@
 
-function FetchWithAuth(url: string | URL | Request, token:unknown, options: RequestInit | undefined) {
-    //write a function that fetches data from the url and appends authentication bearer token before to the headers
-    //return the response
+function FetchWithAuth(url: string | URL | Request, token: string | null, options: RequestInit | undefined) {
+    console.log(token)
     if (options === undefined) {
         options = {};
     }
@@ -13,5 +12,4 @@ function FetchWithAuth(url: string | URL | Request, token:unknown, options: Requ
         }}).then(response => response.json());
   }
 
-  //export function
   export { FetchWithAuth };

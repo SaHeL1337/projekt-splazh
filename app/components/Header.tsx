@@ -17,8 +17,8 @@ export default function MyHeader(){
   React.useEffect(() => {
     (async () => {
       const token = await getToken();
-      const data = await FetchWithAuth('https://jsonplaceholder.typicode.com/todos/1', token, {});
-      setTokens(data.id);
+      const data = await FetchWithAuth('http://localhost:3333', token, {});
+      setTokens(data.user_id);
     })();
   }, []);
 

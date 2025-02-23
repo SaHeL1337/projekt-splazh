@@ -6,5 +6,8 @@ import (
 )
 
 func Test(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "<h1>Hello from Go there. now2!</h1>")
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+
+	fmt.Fprintf(w, "{\"message\": \"Hello from test\"}")
 }
