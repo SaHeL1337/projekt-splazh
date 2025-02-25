@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,7 +11,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+type Project struct {
+	Id     int
+	UserId string
+	Url    string
+}
+
+func CreateProject(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "OPTIONS" {
 		utils.HandlePreFlight(w, r)
@@ -34,38 +41,24 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close(context.Background())
 
-	/*
-		err = insertTokens(context.Background(), conn, usr.ID)
-		if err != nil {
-			fmt.Println(err)
-		}*/
-
-	tokens, err := getTokens(context.Background(), conn, usr.ID)
+	var project Project
+	err = json.NewDecoder(r.Body).Decode(&project)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Fprintf(w, `{"tokens": %d}`, tokens)
-}
 
-func getTokens(ctx context.Context, conn *pgx.Conn, userId string) (int, error) {
-	query := `SELECT tokens FROM tokens WHERE userId = @userId`
-	args := pgx.NamedArgs{
-		"userId": userId,
-	}
-	var tokens int
-	err := conn.QueryRow(ctx, query, args).Scan(&tokens)
+	err = insertProject(context.Background(), conn, usr.ID, project.Url)
 	if err != nil {
-		return 0, fmt.Errorf("unable to get tokens: %w", err)
+		fmt.Println(err)
 	}
-
-	return tokens, nil
+	fmt.Fprintf(w, "{}")
 }
 
-func insertTokens(ctx context.Context, conn *pgx.Conn, userId string) error {
-	query := `INSERT INTO tokens (userId, tokens) VALUES (@userId, @tokens)`
+func insertProject(ctx context.Context, conn *pgx.Conn, userId, url string) error {
+	query := `INSERT INTO projects (userId, url) VALUES (@userId, @url)`
 	args := pgx.NamedArgs{
 		"userId": userId,
-		"tokens": 300,
+		"url":    url,
 	}
 	_, err := conn.Exec(ctx, query, args)
 	if err != nil {

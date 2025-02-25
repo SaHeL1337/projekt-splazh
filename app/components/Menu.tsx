@@ -14,6 +14,11 @@ const items = [
     label: <Link to="/reports">Reports</Link>,
     key: 'reports',
     icon: <VideoCameraOutlined /> ,
+  },
+  {
+    label: <Link to="/projects">Projects</Link>,
+    key: 'reports',
+    icon: <VideoCameraOutlined /> ,
   }
 ];
 
