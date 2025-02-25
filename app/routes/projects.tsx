@@ -14,10 +14,10 @@ export function meta({}: Route.MetaArgs) {
 }
 
 interface Project {
-  Id: number;
-  UserId: string;
-  Url: string;
-  LastCrawl?: string;
+  id: number;
+  userid: string;
+  url: string;
+  lastcrawl?: string;
 }
 
 const layout = {
@@ -53,10 +53,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       
       // Transform API data to match table data structure
       const formattedProjects = data.map((project: Project) => ({
-        key: project.Id.toString(),
-        id: project.Id,
-        url: project.Url,
-        lastCrawl: project.LastCrawl || "Not crawled yet",
+        key: project.id.toString(),
+        id: project.id,
+        url: project.url,
+        lastCrawl: project.lastcrawl || "Not crawled yet",
       }));
       
       setProjects(formattedProjects);
@@ -101,7 +101,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         });
         setEditingId(null);
         setEditingUrl('');
-        await fetchProjects();
       } catch (error) {
         console.error("Failed to update project:", error);
       } finally {

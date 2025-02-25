@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	utils "projekt-splazh/utils"
-
-	"github.com/jackc/pgx/v5"
+	"projekt-splazh/internal/database"
+	"projekt-splazh/internal/project"
+	"projekt-splazh/internal/project/postgres"
+	"projekt-splazh/utils"
 )
 
+// GetProjects handles retrieving all projects for a user
 func GetProjects(w http.ResponseWriter, r *http.Request) {
-
 	if r.Method == "OPTIONS" {
 		utils.HandlePreFlight(w, r)
 		return
@@ -20,53 +20,42 @@ func GetProjects(w http.ResponseWriter, r *http.Request) {
 
 	usr, err := utils.AuthenticateAndSetHeaders(w, r)
 	if err != nil {
+		http.Error(w, "Authentication error", http.StatusUnauthorized)
 		fmt.Println(err)
 		return
 	}
 	if usr == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
 		fmt.Println("User not found")
 		return
 	}
 
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	// Connect to database
+	conn, err := database.ConnectDB()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		http.Error(w, "Database connection error", http.StatusInternalServerError)
+		fmt.Println(err)
+		return
 	}
 	defer conn.Close(context.Background())
 
-	var projects []Project
-	projects, err = getProjects(context.Background(), conn, usr.ID)
-	if err != nil {
-		fmt.Println(err)
-	}
+	// Setup project repository and service
+	repo := postgres.NewRepository(conn)
+	service := project.NewService(repo)
 
-	jsonData, err := json.Marshal(projects)
+	// Get all projects for the user
+	projects, err := service.GetByUserID(r.Context(), usr.ID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error encoding JSON: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Failed to retrieve projects", http.StatusInternalServerError)
+		fmt.Println(err)
 		return
 	}
-	w.Write(jsonData)
-}
 
-func getProjects(ctx context.Context, conn *pgx.Conn, userId string) ([]Project, error) {
-	query := `SELECT * FROM projects where userId = @userId ORDER BY id ASC`
-	args := pgx.NamedArgs{
-		"userId": userId,
+	// Return projects as JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(projects); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		fmt.Println(err)
+		return
 	}
-	rows, err := conn.Query(ctx, query, args)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get rows: %w", err)
-	}
-	projects := []Project{}
-	for rows.Next() {
-		var project Project
-		err = rows.Scan(&project.Id, &project.UserId, &project.Url)
-		if err != nil {
-			return nil, fmt.Errorf("unable to scan row: %w", err)
-		}
-		projects = append(projects, project)
-	}
-
-	return projects, nil
 }
