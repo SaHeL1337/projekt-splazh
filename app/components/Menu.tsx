@@ -17,7 +17,7 @@ const items = [
   },
   {
     label: <Link to="/projects">Projects</Link>,
-    key: 'reports',
+    key: 'projects',
     icon: <VideoCameraOutlined /> ,
   }
 ];

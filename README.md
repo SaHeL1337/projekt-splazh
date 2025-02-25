@@ -1,100 +1,76 @@
-# Welcome to React Router!
+# Projekt Splazh
 
-A modern, production-ready template for building full-stack React applications using React Router.
+A modern web application with a sleek dashboard interface, built with React and Ant Design.
+See here: https://projekt-splazh.vercel.app
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## Overview
+
+Projekt Splazh is a web application that provides a clean and intuitive user interface for managing projects, reports, and user data. The application features a responsive layout with a collapsible sidebar menu for navigation.
 
 ## Features
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- **Responsive Layout**: Adapts to different screen sizes with collapsible sidebar
+- **Navigation System**: Easy navigation between different sections of the application
+- **Dashboard**: Central hub for monitoring key information
+- **Reports Section**: For viewing and managing reports
+- **Projects Section**: For tracking and managing projects
+
+## Technology Stack
+
+- **Frontend Framework**: React
+- **UI Components**: Ant Design
+- **Routing**: React Router
+- **Backend**: Go functions
 
 ## Getting Started
 
+### Prerequisites
+
+- Node.js (version 14.x or higher recommended)
+- npm or yarn package manager
+
 ### Installation
 
-Install the dependencies:
+1. Clone the repository:
+   ```
+   git clone https://github.com/your-username/projekt-splazh.git
+   cd projekt-splazh
+   ```
 
-```bash
-npm install
+2. Install dependencies:
+   ```
+   npm install
+   # or
+   yarn install
+   ```
+
+3. Start the development server:
+   ```
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+4. Open your browser and navigate to `http://localhost:3000`
+5. Run the go dev server:
+```
+go run main.go
 ```
 
-### Development
-
-Start the development server with HMR:
-
-```bash
-npm run dev
-```
-
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
-
-```bash
-npm run build
-```
-
-## Deployment
-
-### Docker Deployment
-
-This template includes three Dockerfiles optimized for different package managers:
-
-- `Dockerfile` - for npm
-- `Dockerfile.pnpm` - for pnpm
-- `Dockerfile.bun` - for bun
-
-To build and run using Docker:
-
-```bash
-# For npm
-docker build -t my-app .
-
-# For pnpm
-docker build -f Dockerfile.pnpm -t my-app .
-
-# For bun
-docker build -f Dockerfile.bun -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
+## Project Structure
 
 ```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+projekt-splazh/
+├── api/                  # Go Backend
+├── app/
+│   ├── components/
+│   │   └── Menu.tsx      # Sidebar navigation component
+│   └── ...               # Other app components
+├── public/               # Static assets
+└── ...                   # Configuration files
 ```
 
-## Styling
+## Contributing
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
----
-
-Built with ❤️ using React Router.
