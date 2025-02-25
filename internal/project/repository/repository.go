@@ -1,4 +1,4 @@
-package postgres
+package repository
 
 import (
 	"context"
@@ -21,10 +21,10 @@ func NewRepository(db *pgx.Conn) *Repository {
 }
 
 // Create inserts a new project into the database
-func (r *Repository) Create(ctx context.Context, userID, url string) error {
-	query := `INSERT INTO projects (userId, url) VALUES (@userId, @url)`
+func (r *Repository) Create(ctx context.Context, userId, url string) error {
+	query := `INSERT INTO projects (user_id, url) VALUES (@userId, @url)`
 	args := pgx.NamedArgs{
-		"userId": userID,
+		"userId": userId,
 		"url":    url,
 	}
 	_, err := r.db.Exec(ctx, query, args)
@@ -69,7 +69,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*project.Project, err
 	}
 
 	var p project.Project
-	err := r.db.QueryRow(ctx, query, args).Scan(&p.ID, &p.UserID, &p.URL)
+	err := r.db.QueryRow(ctx, query, args).Scan(&p.Id, &p.UserId, &p.Url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get project: %w", err)
 	}
@@ -78,10 +78,10 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*project.Project, err
 }
 
 // GetByUserID retrieves all projects for a user
-func (r *Repository) GetByUserID(ctx context.Context, userID string) ([]*project.Project, error) {
-	query := `SELECT id, userid, url FROM projects WHERE userid = @userId ORDER BY id`
+func (r *Repository) GetByUserID(ctx context.Context, userId string) ([]*project.Project, error) {
+	query := `SELECT id, user_id, url FROM projects WHERE user_id = @userId ORDER BY id`
 	args := pgx.NamedArgs{
-		"userId": userID,
+		"userId": userId,
 	}
 
 	rows, err := r.db.Query(ctx, query, args)
@@ -93,7 +93,7 @@ func (r *Repository) GetByUserID(ctx context.Context, userID string) ([]*project
 	projects := []*project.Project{}
 	for rows.Next() {
 		var p project.Project
-		if err := rows.Scan(&p.ID, &p.UserID, &p.URL); err != nil {
+		if err := rows.Scan(&p.Id, &p.UserId, &p.Url); err != nil {
 			return nil, fmt.Errorf("unable to scan project row: %w", err)
 		}
 		projects = append(projects, &p)

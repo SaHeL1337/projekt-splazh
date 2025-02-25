@@ -6,18 +6,18 @@ import (
 
 // Project represents a project entity
 type Project struct {
-	ID     int    `json:"id"`
-	UserID string `json:"userId"`
-	URL    string `json:"url"`
+	Id     int    `json:"id"`
+	UserId string `json:"userId"`
+	Url    string `json:"url"`
 }
 
 // Repository defines the interface for project data operations
 type Repository interface {
-	Create(ctx context.Context, userID, url string) error
+	Create(ctx context.Context, userId, url string) error
 	Update(ctx context.Context, id int, url string) error
 	Delete(ctx context.Context, id int) error
 	GetByID(ctx context.Context, id int) (*Project, error)
-	GetByUserID(ctx context.Context, userID string) ([]*Project, error)
+	GetByUserID(ctx context.Context, userId string) ([]*Project, error)
 }
 
 // Service handles business logic for projects
@@ -33,8 +33,8 @@ func NewService(repo Repository) *Service {
 }
 
 // Create creates a new project
-func (s *Service) Create(ctx context.Context, userID, url string) error {
-	return s.repo.Create(ctx, userID, url)
+func (s *Service) Create(ctx context.Context, userId, url string) error {
+	return s.repo.Create(ctx, userId, url)
 }
 
 // Update updates an existing project
@@ -53,6 +53,6 @@ func (s *Service) GetByID(ctx context.Context, id int) (*Project, error) {
 }
 
 // GetByUserID retrieves all projects for a user
-func (s *Service) GetByUserID(ctx context.Context, userID string) ([]*Project, error) {
-	return s.repo.GetByUserID(ctx, userID)
+func (s *Service) GetByUserID(ctx context.Context, userId string) ([]*Project, error) {
+	return s.repo.GetByUserID(ctx, userId)
 }

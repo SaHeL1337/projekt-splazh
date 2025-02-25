@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"projekt-splazh/internal/database"
 	"projekt-splazh/internal/project"
-	"projekt-splazh/internal/project/postgres"
+	"projekt-splazh/internal/project/repository"
 	"projekt-splazh/utils"
 )
 
@@ -44,7 +44,7 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(context.Background())
 
 	// Setup project repository and service
-	repo := postgres.NewRepository(conn)
+	repo := repository.NewRepository(conn)
 	service := project.NewService(repo)
 
 	// Parse request body

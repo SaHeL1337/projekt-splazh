@@ -5,18 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	crawlQueue "projekt-splazh/internal/crawl"
+	"projekt-splazh/internal/crawl/repository"
 	"projekt-splazh/internal/database"
-	"projekt-splazh/internal/project"
-	"projekt-splazh/internal/project/repository"
 	"projekt-splazh/utils"
 )
 
-type projectRequest struct {
-	URL string `json:"url"`
+type crawlRequest struct {
+	ProjectId int    `json:"projectId"`
+	Url       string `json:"url"`
 }
 
-// CreateProject handles the creation of a new project
-func CreateProject(w http.ResponseWriter, r *http.Request) {
+// StartCrawl handles starting a crawl for a project
+func StartCrawl(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		utils.HandlePreFlight(w, r)
 		return
@@ -43,21 +44,20 @@ func CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close(context.Background())
 
-	// Setup project repository and service
-	repo := repository.NewRepository(conn)
-	service := project.NewService(repo)
-
 	// Parse request body
-	var req projectRequest
+	var req crawlRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		fmt.Println(err)
 		return
 	}
 
-	// Create the project
-	if err := service.Create(r.Context(), usr.ID, req.URL); err != nil {
-		http.Error(w, "Failed to create project", http.StatusInternalServerError)
+	// Add project to crawl queue
+	repo := repository.NewRepository(conn)
+	service := crawlQueue.NewService(repo)
+
+	if err := service.Create(context.Background(), req.ProjectId); err != nil {
+		http.Error(w, "Failed to add to crawl queue", http.StatusInternalServerError)
 		fmt.Println(err)
 		return
 	}
