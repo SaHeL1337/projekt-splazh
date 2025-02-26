@@ -12,7 +12,7 @@ import (
 )
 
 type statusRequest struct {
-	ProjectId int    `json:"projectId"`
+	ProjectId int `json:"projectId"`
 }
 
 func StatusCrawl(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +54,7 @@ func StatusCrawl(w http.ResponseWriter, r *http.Request) {
 	repo := repository.NewRepository(conn)
 	service := crawlQueue.NewService(repo)
 
-	status, err := service.GetStatus(context.Background(), req.ProjectId)
+	status, pagesCrawled, err := service.GetStatus(context.Background(), req.ProjectId)
 	if err != nil {
 		http.Error(w, "Failed to get crawl status", http.StatusInternalServerError)
 		fmt.Println(err)
@@ -64,9 +64,11 @@ func StatusCrawl(w http.ResponseWriter, r *http.Request) {
 	// Return status response
 	w.Header().Set("Content-Type", "application/json")
 	response := struct {
-		Status string `json:"status"`
+		Status      string `json:"status"`
+		PagesCrawled int    `json:"pagesCrawled"`
 	}{
-		Status: status,
+		Status:      status,
+		PagesCrawled: pagesCrawled,
 	}
 	json.NewEncoder(w).Encode(response)
-} 
+}

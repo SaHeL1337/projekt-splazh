@@ -6,3 +6,7 @@
 /build/
 
 .env
+
+/crawler/env
+/crawler/__pycache__
+/crawler/crawler.log

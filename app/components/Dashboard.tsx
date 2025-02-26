@@ -3,6 +3,7 @@ import { Card, Row, Col, Statistic, Descriptions, Divider, Button, message } fro
 import { FetchWithAuth } from '../services/api';
 import { useAuth } from '@clerk/clerk-react';
 import { useParams } from 'react-router-dom';
+import ProjectNotifications from './ProjectNotifications';
 
 interface Project {
   id: number;
@@ -11,12 +12,20 @@ interface Project {
   lastcrawl?: string;
 }
 
+interface CrawlStatus {
+  status: string;
+  pagesCrawled: number;
+}
+
 const Dashboard: React.FC = () => {
   const { getToken } = useAuth();
   const { id } = useParams();
   const [loading, setLoading] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
-  const [status, setStatus] = useState<string>("loading");
+  const [crawlStatus, setCrawlStatus] = useState<CrawlStatus>({
+    status: "loading",
+    pagesCrawled: 0
+  });
 
   useEffect(() => {
     if (id) {
@@ -50,7 +59,10 @@ const Dashboard: React.FC = () => {
         method: "POST",
         body: JSON.stringify({ projectId: Number(id) }),
       });
-      setStatus(response.status);
+      setCrawlStatus({
+        status: response.status,
+        pagesCrawled: response.pagesCrawled
+      });
     } catch (error) {
       console.error("Failed to get crawl status:", error);
     }
@@ -88,10 +100,10 @@ const Dashboard: React.FC = () => {
         <Divider />
         <Row gutter={16}>
           <Col span={12}>
-            <Statistic title="Pages Crawled" value={0} />
+            <Statistic title="Pages Crawled" value={crawlStatus.pagesCrawled} />
           </Col>
           <Col span={12}>
-            <Statistic title="Crawl Status" value={status} />
+            <Statistic title="Crawl Status" value={crawlStatus.status} />
           </Col>
         </Row>
         <Divider />
@@ -100,12 +112,16 @@ const Dashboard: React.FC = () => {
             type="primary" 
             onClick={queueCrawl} 
             loading={loading}
-            disabled={status === "queued"}
+            disabled={crawlStatus.status === "queued"}
           >
             Queue Crawl
           </Button>
         </Row>
       </Card>
+      
+      <div style={{ marginTop: '20px' }}>
+        {project && <ProjectNotifications projectId={project.id} />}
+      </div>
     </div>
   );
 };
