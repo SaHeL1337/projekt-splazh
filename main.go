@@ -20,9 +20,9 @@ func main() {
 
 	http.HandleFunc("/api/crawl/start", crawlHandler.StartCrawl)
 
+	fmt.Println("Server starting on port 3333")
 	err := http.ListenAndServe(":3333", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("Server started on port 3333")
 }

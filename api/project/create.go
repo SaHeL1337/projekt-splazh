@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"projekt-splazh/internal/database"
-	"projekt-splazh/internal/project"
-	"projekt-splazh/internal/project/repository"
+	"projekt-splazh/pkg/database"
+	"projekt-splazh/pkg/project"
+	"projekt-splazh/pkg/project/repository"
 	"projekt-splazh/utils"
 )
 

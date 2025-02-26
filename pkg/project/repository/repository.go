@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	"projekt-splazh/internal/project"
+	"projekt-splazh/pkg/project"
 
 	"github.com/jackc/pgx/v5"
 )

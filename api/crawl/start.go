@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	crawlQueue "projekt-splazh/internal/crawl"
-	"projekt-splazh/internal/crawl/repository"
-	"projekt-splazh/internal/database"
+	crawlQueue "projekt-splazh/pkg/crawl"
+	"projekt-splazh/pkg/crawl/repository"
+	"projekt-splazh/pkg/database"
 	"projekt-splazh/utils"
 )
 
