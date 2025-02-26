@@ -6,17 +6,12 @@ import { Link } from "react-router";
 
 const items = [
   {
-    label: <Link to="/">Dashboard</Link>,
-    key: 'home',
+    label: <Link to="/dashboard/project">Dashboard</Link>,
+    key: 'dashboard',
     icon: <UserOutlined />,
   },
   {
-    label: <Link to="/reports">Reports</Link>,
-    key: 'reports',
-    icon: <VideoCameraOutlined /> ,
-  },
-  {
-    label: <Link to="/projects">Projects</Link>,
+    label: <Link to="/">Projects</Link>,
     key: 'projects',
     icon: <VideoCameraOutlined /> ,
   }

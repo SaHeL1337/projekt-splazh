@@ -11,13 +11,12 @@ import (
 	"projekt-splazh/utils"
 )
 
-type crawlRequest struct {
+type queueRequest struct {
 	ProjectId int    `json:"projectId"`
-	Url       string `json:"url"`
 }
 
-// StartCrawl handles starting a crawl for a project
-func StartCrawl(w http.ResponseWriter, r *http.Request) {
+// QueueCrawl handles adding a crawl to the queue for a project
+func QueueCrawl(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		utils.HandlePreFlight(w, r)
 		return
@@ -45,7 +44,7 @@ func StartCrawl(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(context.Background())
 
 	// Parse request body
-	var req crawlRequest
+	var req queueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		fmt.Println(err)
@@ -65,4 +64,4 @@ func StartCrawl(w http.ResponseWriter, r *http.Request) {
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, "{}")
-}
+} 

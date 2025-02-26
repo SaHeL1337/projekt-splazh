@@ -63,7 +63,7 @@ func (r *Repository) Delete(ctx context.Context, id int) error {
 
 // GetByID retrieves a project by its ID
 func (r *Repository) GetByID(ctx context.Context, id int) (*project.Project, error) {
-	query := `SELECT id, userId, url FROM projects WHERE id = @id`
+	query := `SELECT id, user_id, url FROM projects WHERE id = @id`
 	args := pgx.NamedArgs{
 		"id": id,
 	}

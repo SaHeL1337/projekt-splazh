@@ -30,3 +30,21 @@ func (r *Repository) Create(ctx context.Context, projectId int) error {
 	}
 	return nil
 }
+
+func (r *Repository) GetStatus(ctx context.Context, projectId int) (string, error) {
+	query := `SELECT COUNT(*) FROM crawl_queue WHERE project_id = @projectId`
+	args := pgx.NamedArgs{
+		"projectId": projectId,
+	}
+	
+	var count int
+	err := r.db.QueryRow(ctx, query, args).Scan(&count)
+	if err != nil {
+		return "", fmt.Errorf("unable to get crawl status: %w", err)
+	}
+
+	if count > 0 {
+		return "queued", nil
+	}
+	return "completed", nil
+}

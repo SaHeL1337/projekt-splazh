@@ -14,6 +14,7 @@ type Crawl_Queue struct {
 // Repository defines the interface for project data operations
 type Repository interface {
 	Create(ctx context.Context, projectId int) error
+	GetStatus(ctx context.Context, projectId int) (string, error)
 }
 
 // Service handles business logic for projects
@@ -31,4 +32,9 @@ func NewService(repo Repository) *Service {
 // Create creates a new project
 func (s *Service) Create(ctx context.Context, projectId int) error {
 	return s.repo.Create(ctx, projectId)
+}
+
+// GetStatus retrieves the status of a project
+func (s *Service) GetStatus(ctx context.Context, projectId int) (string, error) {
+	return s.repo.GetStatus(ctx, projectId)
 }

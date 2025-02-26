@@ -29,7 +29,7 @@ const tailLayout = {
   wrapperCol: { offset: 4 },
 };
 
-export default function Home({ loaderData }: Route.ComponentProps) {
+export default function Projects({ loaderData }: Route.ComponentProps) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [projects, setProjects] = useState<any[]>([]);
   const [tableLoading, setTableLoading] = useState(true);
@@ -101,6 +101,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         });
         setEditingId(null);
         setEditingUrl('');
+        await fetchProjects(); 
       } catch (error) {
         console.error("Failed to update project:", error);
       } finally {
