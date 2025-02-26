@@ -51,11 +51,22 @@ Projekt Splazh is a web application that provides a clean and intuitive user int
    yarn dev
    ```
 
-4. Open your browser and navigate to `http://localhost:3000`
+4. Open your browser and navigate to `http://localhost:5173`
 5. Run the go dev server:
 ```
 go run main.go
 ```
+
+6. Run the crawler:
+```
+cd crawler
+python -m venv env
+source env/bin/activate
+pip install -r requirements.txt
+python Webcrawler.py
+```
+
+
 
 ## Project Structure
 
