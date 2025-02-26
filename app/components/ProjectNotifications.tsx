@@ -24,6 +24,12 @@ interface Notification {
   timestamp: string;
 }
 
+interface UrlWithCount {
+  url: string;
+  notifications: Notification[];
+  count: number;
+}
+
 interface ProjectNotificationsProps {
   projectId: number;
 }
@@ -69,6 +75,15 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
     return groups;
   }, {} as Record<string, Notification[]>);
 
+  // Sort URLs by notification count (descending)
+  const sortedUrls: UrlWithCount[] = Object.entries(groupedNotifications)
+    .map(([url, urlNotifications]) => ({
+      url,
+      notifications: urlNotifications,
+      count: urlNotifications.length
+    }))
+    .sort((a, b) => b.count - a.count);
+
   // Count notifications by category for each URL
   const getCategoryCounts = (urlNotifications: Notification[]) => {
     const counts: Record<string, number> = {};
@@ -82,7 +97,7 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
     switch (category) {
       case 'external_resource':
         return 'blue';
-      case 'security':
+      case 'redirect':
         return 'red';
       case 'performance':
         return 'orange';
@@ -95,7 +110,7 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
     switch (category) {
       case 'external_resource':
         return <LinkOutlined />;
-      case 'security':
+      case 'redirect':
         return <WarningOutlined />;
       case 'performance':
         return <InfoCircleOutlined />;
@@ -146,9 +161,8 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
           expandIcon={({ isActive }) => isActive ? <DownOutlined /> : <RightOutlined />}
           className="url-collapse"
         >
-          {Object.entries(groupedNotifications).map(([url, urlNotifications]) => {
+          {sortedUrls.map(({ url, notifications: urlNotifications, count }) => {
             const categoryCounts = getCategoryCounts(urlNotifications);
-            const totalCount = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
             
             return (
               <Panel 
@@ -170,7 +184,7 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
                       {url}
                     </Text>
                     <Badge 
-                      count={totalCount} 
+                      count={count} 
                       style={{ 
                         backgroundColor: '#1890ff',
                         marginLeft: 'auto'
