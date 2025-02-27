@@ -11,7 +11,7 @@ const items = [
     icon: <UserOutlined />,
   },
   {
-    label: <Link to="/">Projects</Link>,
+    label: <Link to="/projects">Projects</Link>,
     key: 'projects',
     icon: <VideoCameraOutlined /> ,
   }
