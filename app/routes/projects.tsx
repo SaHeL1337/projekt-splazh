@@ -1,4 +1,4 @@
-import type { Route } from "./+types/home";
+import type { Route } from "./+types/projects";
 import { useEffect, useState, useCallback } from 'react';
 import { Table, Row, Col, Form, Input, Button, Space, Card, message } from 'antd';
 
@@ -47,7 +47,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
     try {
       setTableLoading(true);
       const token = await getToken();
-      const data = await FetchWithAuth('/api/project/get', token, {
+      const data = await FetchWithAuth('/api/projects', token, {
         method: "GET"
       });
       
@@ -77,8 +77,8 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
     try {
       setDeletingId(id);
       const token = await getToken();
-      await FetchWithAuth(`/api/project/delete`, token, {
-        method: "POST",
+      await FetchWithAuth(`/api/project`, token, {
+        method: "DELETE",
         body: JSON.stringify({ Id: id }),
       });
       await fetchProjects(); 
@@ -95,8 +95,8 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
       try {
         setUpdatingId(id);
         const token = await getToken();
-        await FetchWithAuth(`/api/project/update`, token, {
-          method: "POST",
+        await FetchWithAuth(`/api/project`, token, {
+          method: "PUT",
           body: JSON.stringify({ Id: id, url: editingUrl }),
         });
         setEditingId(null);
@@ -121,7 +121,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
     try {
       setSubmitting(true);
       const token = await getToken();
-      await FetchWithAuth('/api/project/create', token, {
+      await FetchWithAuth('/api/project', token, {
         method: "POST",
         body: JSON.stringify({ url: values.url }),
       });

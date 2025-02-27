@@ -64,4 +64,5 @@ func setHeaders(w http.ResponseWriter) {
 	// It is used in the handler functions to set the necessary headers for the response.
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 }

@@ -11,12 +11,8 @@ import (
 	"projekt-splazh/utils"
 )
 
-type deleteRequest struct {
-	ID int `json:"id"`
-}
-
-// DeleteProject handles deleting a project
-func DeleteProject(w http.ResponseWriter, r *http.Request) {
+// Projects handles operations on the collection of projects
+func Projects(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		utils.HandlePreFlight(w, r)
 		return
@@ -47,22 +43,25 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 	repo := repository.NewRepository(conn)
 	service := project.NewService(repo)
 
-	// Parse request body
-	var req deleteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		fmt.Println(err)
-		return
-	}
+	// Route based on HTTP method
+	switch r.Method {
+	case "GET":
+		// Get all projects for the user
+		projects, err := service.GetByUserID(r.Context(), usr.ID)
+		if err != nil {
+			http.Error(w, "Failed to retrieve projects", http.StatusInternalServerError)
+			fmt.Println(err)
+			return
+		}
 
-	// Delete the project
-	if err := service.Delete(r.Context(), req.ID); err != nil {
-		http.Error(w, "Failed to delete project", http.StatusInternalServerError)
-		fmt.Println(err)
-		return
-	}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(projects); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			fmt.Println(err)
+			return
+		}
 
-	// Return success response
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, "{}")
-}
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+} 

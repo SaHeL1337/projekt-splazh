@@ -24,7 +24,7 @@ const ProjectSelector: React.FC = () => {
     try {
       setLoading(true);
       const token = await getToken();
-      const data = await FetchWithAuth('/api/project/get', token, {
+      const data = await FetchWithAuth('/api/projects', token, {
         method: "GET"
       });
       setProjects(data);

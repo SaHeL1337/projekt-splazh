@@ -11,23 +11,12 @@ import  UserComponent  from '../components/User';
 import { useAuth } from '@clerk/clerk-react';
 
 export default function MyHeader(){
-  const [tokens, setTokens] = React.useState(0);
-  const { isLoaded, isSignedIn, userId, sessionId, getToken } = useAuth()
-  
-  React.useEffect(() => {
-    (async () => {
-      const token = await getToken();
-      const data = await FetchWithAuth('/api/index', token, {});
-      setTokens(data.user_id);
-    })();
-  }, []);
-
 
     return <Header style={{ padding: 0 }}>
     <Row>
       <Col className="breadcrumb" span={11}><Breadcrumb items={[{ title: 'Dashboard' }, { title: 'https://cloudvil.com'}]} /></Col>
       <Col span={10}>
-        Tokens: {tokens} 
+        Tokens: 0 
       </Col>
       <Col className="userNavigation" span={2}>
         <UserComponent/> 

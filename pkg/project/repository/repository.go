@@ -50,14 +50,25 @@ func (r *Repository) Update(ctx context.Context, id int, url string) error {
 
 // Delete removes a project from the database
 func (r *Repository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM projects WHERE id = @id`
+	// Delete from related tables first
+	deleteQueries := []string{
+		`DELETE FROM crawl_queue WHERE project_id = @id`,
+		`DELETE FROM crawl_result WHERE project_id = @id`,
+		`DELETE FROM project_notifications WHERE project_id = @id`,
+		`DELETE FROM projects WHERE id = @id`,
+	}
+	
 	args := pgx.NamedArgs{
 		"id": id,
 	}
-	_, err := r.db.Exec(ctx, query, args)
-	if err != nil {
-		return fmt.Errorf("unable to delete project: %w", err)
+	
+	for _, query := range deleteQueries {
+		_, err := r.db.Exec(ctx, query, args)
+		if err != nil {
+			return fmt.Errorf("unable to delete project data: %w", err)
+		}
 	}
+	
 	return nil
 }
 

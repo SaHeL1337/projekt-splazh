@@ -47,7 +47,7 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
       setLoading(true);
       setError(null);
       const token = await getToken();
-      const response = await FetchWithAuth(`/api/notifications/get?projectId=${projectId}`, token, {
+      const response = await FetchWithAuth(`/api/notifications?projectId=${projectId}`, token, {
         method: "GET",
       });
       

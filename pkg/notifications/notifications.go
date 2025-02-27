@@ -25,4 +25,4 @@ func NewService(repo Repository) *Service {
 // GetByProjectID retrieves all notifications for a project
 func (s *Service) GetByProjectID(ctx context.Context, projectID int) ([]repository.Notification, error) {
 	return s.repo.GetByProjectID(ctx, projectID)
-} 
+}

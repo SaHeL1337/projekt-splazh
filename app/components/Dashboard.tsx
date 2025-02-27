@@ -41,7 +41,7 @@ const Dashboard: React.FC = () => {
     
     try {
       const token = await getToken();
-      const response = await FetchWithAuth(`/api/project/get/${id}`, token, {
+      const response = await FetchWithAuth(`/api/project?projectId=${id}`, token, {
         method: "GET",
       });
       setProject(response);
@@ -55,9 +55,8 @@ const Dashboard: React.FC = () => {
     
     try {
       const token = await getToken();
-      const response = await FetchWithAuth('/api/crawl/status', token, {
-        method: "POST",
-        body: JSON.stringify({ projectId: Number(id) }),
+      const response = await FetchWithAuth(`/api/crawl?projectId=${id}`, token, {
+        method: "GET"
       });
       setCrawlStatus({
         status: response.status,
@@ -74,7 +73,7 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       const token = await getToken();
-      await FetchWithAuth('/api/crawl/queue', token, {
+      await FetchWithAuth('/api/crawl', token, {
         method: "POST",
         body: JSON.stringify({ projectId: Number(id) }),
       });
