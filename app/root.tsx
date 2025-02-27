@@ -2,9 +2,11 @@ import {
   isRouteErrorResponse,
   Links,
   Meta,
+  Navigate,
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import { rootAuthLoader } from '@clerk/react-router/ssr.server'
@@ -20,32 +22,28 @@ import MyFooter from './components/Footer';
 import Menu from './components/Menu';
 import MyHeader from './components/Header';
 
-import { ClerkProvider } from '@clerk/react-router'
+import { ClerkProvider, SignedIn, SignedOut } from '@clerk/react-router'
 
 export async function loader(args: Route.LoaderArgs) {
   return rootAuthLoader(args);
 }
 
-export default function App({ loaderData }: Route.ComponentProps) {
+// Layout wrapper component that conditionally renders different layouts
+function AppLayout() {
+  const location = useLocation();
+  const isLandingPage = location.pathname === "/";
+
+  // If we're on the landing page, just render the Outlet directly
+  // The landing page has its own self-contained layout
+  if (isLandingPage) {
+    return <Outlet />;
+  }
+
+  // For authenticated routes, use the app's internal layout
   return (
-    <ClerkProvider
-      loaderData={loaderData}
-      signUpFallbackRedirectUrl="/"
-      signInFallbackRedirectUrl="/"
-    >
-    <ConfigProvider
-    theme={{
-      token: {
-        fontSize: 15,
-      },
-      algorithm: theme.defaultAlgorithm,
-      components: {
-        Layout: {
-          headerBg: '#fff',
-        }
-      }
-    }}>
-     <L style={{height:"100vh"}}>
+    <>
+    <SignedIn>
+    <L style={{height:"100vh"}}>
       <Menu/>
       <L className="layout">
         <MyHeader/>
@@ -62,8 +60,36 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <MyFooter />
       </L>
     </L>
-  </ConfigProvider>
-  </ClerkProvider>
+    </SignedIn>
+    <SignedOut>
+      <Navigate to="/" />
+    </SignedOut>
+    </>
+  );
+}
+
+export default function App({ loaderData }: Route.ComponentProps) {
+  return (
+    <ClerkProvider
+      loaderData={loaderData}
+      signUpFallbackRedirectUrl="/projects"
+      signInFallbackRedirectUrl="/projects"
+    >
+    <ConfigProvider
+    theme={{
+      token: {
+        fontSize: 15,
+      },
+      algorithm: theme.defaultAlgorithm,
+      components: {
+        Layout: {
+          headerBg: '#fff',
+        }
+      }
+    }}>
+      <AppLayout />
+    </ConfigProvider>
+    </ClerkProvider>
   )
 }
 

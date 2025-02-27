@@ -1,10 +1,10 @@
 import type { Route } from "./+types/projects";
 import { useEffect, useState, useCallback } from 'react';
 import { Table, Row, Col, Form, Input, Button, Space, Card, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 
 import { FetchWithAuth } from '../services/api'
-
-import { useAuth } from '@clerk/clerk-react';
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -31,6 +31,7 @@ const tailLayout = {
 
 export default function Projects({ loaderData }: Route.ComponentProps) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<any[]>([]);
   const [tableLoading, setTableLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -68,10 +69,17 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
     }
   }, [isLoaded, isSignedIn, getToken]);
   
-  // Use the memoized fetchProjects in useEffect
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    // Redirect to landing page if not authenticated
+    if (isLoaded && !isSignedIn) {
+      navigate('/');
+    }
+    
+    // Only fetch projects if authenticated
+    if (isLoaded && isSignedIn) {
+      fetchProjects();
+    }
+  }, [isLoaded, isSignedIn, navigate]);
 
   const handleDelete = async (id: number) => {
     try {

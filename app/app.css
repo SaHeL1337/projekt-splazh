@@ -9,12 +9,12 @@
 .demo-logo-vertical {
   width: 90%;
   height: 40px;
-  margin:15px auto 35px auto;
-  
+  margin: 15px auto 35px auto;
+
   background-color: darkgrey;
 }
 
-.breadcrumb{
+.breadcrumb {
   padding-left: 20px;
   margin-top: 30px;
 }
@@ -26,4 +26,186 @@
 
 .userProfilePicture {
   padding: 8px 0px 0px 15px;
+}
+
+/* Landing Page Styles */
+.landing-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.landing-layout {
+  min-height: 100vh;
+}
+
+.landing-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 0;
+}
+
+.landing-logo {
+  font-size: 28px;
+  font-weight: bold;
+  background: linear-gradient(90deg, #1890ff, #722ed1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-left: 24px;
+}
+
+.landing-hero {
+  padding: 100px 0 80px;
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  color: white;
+  text-align: center;
+}
+
+.landing-section {
+  padding: 80px 0;
+}
+
+.landing-section-alt {
+  background-color: #f5f5f5;
+}
+
+.landing-section-title {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.landing-feature-card {
+  height: 100%;
+  text-align: center;
+  padding: 30px 20px;
+  transition: all 0.3s;
+}
+
+.landing-feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.landing-feature-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+  color: #1890ff;
+}
+
+.landing-testimonial-card {
+  margin: 20px;
+  padding: 30px;
+}
+
+.landing-testimonial-avatar {
+  margin-bottom: 16px;
+}
+
+.landing-cta {
+  background: linear-gradient(135deg, #722ed1 0%, #1890ff 100%);
+  padding: 80px 0;
+  text-align: center;
+  color: white;
+}
+
+.landing-cta-button {
+  height: 50px;
+  padding: 0 40px;
+  font-size: 18px;
+  background: white;
+  color: #1890ff;
+  border-radius: 25px;
+  border: none;
+  margin-top: 30px;
+}
+
+
+.landing-footer {
+  background: #001529;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 60px 0 20px;
+}
+
+.landing-footer-logo {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 24px;
+  color: white;
+}
+
+.landing-footer-links {
+  list-style: none;
+  padding: 0;
+}
+
+.landing-footer-link {
+  margin-bottom: 12px;
+}
+
+.landing-footer-link a {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.landing-footer-link a:hover {
+  color: #1890ff;
+}
+
+.landing-how-it-works-step {
+  text-align: center;
+  padding: 0 20px;
+}
+
+.landing-pricing-card {
+  height: 100%;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.landing-pricing-card.featured {
+  transform: scale(1.05);
+  border-color: #1890ff;
+  z-index: 1;
+}
+
+.landing-pricing-card:hover {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.landing-faq-collapse {
+  background: transparent;
+  border: none;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.landing-screenshot-carousel {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.landing-screenshot-carousel .slick-slide {
+  padding: 10px;
+}
+
+.landing-screenshot-carousel .slick-dots li button {
+  background: #1890ff;
+}
+
+@media (max-width: 768px) {
+  .landing-hero {
+    padding: 60px 0;
+  }
+
+  .landing-section {
+    padding: 40px 0;
+  }
+
+  .landing-pricing-card.featured {
+    transform: none;
+  }
 }

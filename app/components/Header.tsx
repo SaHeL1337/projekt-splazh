@@ -2,13 +2,11 @@ import { Layout, Row, Col, Space } from 'antd';
 import { SettingOutlined, NotificationOutlined } from '@ant-design/icons';
 import React from 'react';
 
-import { FetchWithAuth } from '../services/api'
 
 import { Breadcrumb } from 'antd';
 const { Header } = Layout;
 
 import  UserComponent  from '../components/User';
-import { useAuth } from '@clerk/clerk-react';
 
 export default function MyHeader(){
 
