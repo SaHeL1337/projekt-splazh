@@ -29,8 +29,8 @@ func NewRepository(db *pgx.Conn) *Repository {
 // Create adds a new crawl job to the queue
 func (r *Repository) Create(ctx context.Context, projectID int) error {
 	query := `
-		INSERT INTO crawl_queue (project_id, status, created_at)
-		VALUES (@projectID, 'pending', NOW())
+		INSERT INTO crawl_queue (project_id, time_start)
+		VALUES (@projectID, NOW())
 	`
 	args := pgx.NamedArgs{
 		"projectID": projectID,
@@ -46,43 +46,47 @@ func (r *Repository) Create(ctx context.Context, projectID int) error {
 
 // GetStatus retrieves the status of a crawl job for a project
 func (r *Repository) GetStatus(ctx context.Context, projectID int) (string, int, error) {
-	// First check if there's an active crawl job
+	// First check if there's an entry in the crawl_queue table
 	queueQuery := `
-		SELECT status FROM crawl_queue
+		SELECT COUNT(*) FROM crawl_queue
 		WHERE project_id = @projectID
-		ORDER BY created_at DESC
-		LIMIT 1
 	`
 	queueArgs := pgx.NamedArgs{
 		"projectID": projectID,
 	}
 
-	var status string
-	err := r.db.QueryRow(ctx, queueQuery, queueArgs).Scan(&status)
-	if err == nil {
-		// Found an active job
-		return status, 0, nil
+	var queueCount int
+	err := r.db.QueryRow(ctx, queueQuery, queueArgs).Scan(&queueCount)
+	if err != nil {
+		return "unknown", 0, fmt.Errorf("unable to check crawl queue: %w", err)
 	}
 
-	// No active job, check for completed crawls
-	countQuery := `
+	if queueCount > 0 {
+		// If there's an entry in the crawl_queue table, status is queued
+		return "queued", 0, nil
+	}
+
+	// No entry in crawl_queue, check for entries in crawl_result table
+	resultQuery := `
 		SELECT COUNT(*) FROM crawl_result
 		WHERE project_id = @projectID
 	`
-	countArgs := pgx.NamedArgs{
+	resultArgs := pgx.NamedArgs{
 		"projectID": projectID,
 	}
 
-	var count int
-	err = r.db.QueryRow(ctx, countQuery, countArgs).Scan(&count)
+	var resultCount int
+	err = r.db.QueryRow(ctx, resultQuery, resultArgs).Scan(&resultCount)
 	if err != nil {
-		return "unknown", 0, fmt.Errorf("unable to get crawl status: %w", err)
+		return "unknown", 0, fmt.Errorf("unable to check crawl results: %w", err)
 	}
 
-	if count > 0 {
-		return "completed", count, nil
+	if resultCount > 0 {
+		// If there are entries in the crawl_result table but none in crawl_queue, status is completed
+		return "completed", resultCount, nil
 	}
 
+	// No entries in either table, status is not_started
 	return "not_started", 0, nil
 }
 
