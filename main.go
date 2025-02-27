@@ -9,8 +9,7 @@ import (
 
 func main() {
 
-	// New RESTful endpoints
-	http.HandleFunc("/api/project", handler.Project) // For GET with ID
+	http.HandleFunc("/api/project", handler.Project) 
 	http.HandleFunc("/api/projects", handler.Projects)
 	http.HandleFunc("/api/crawl", handler.Crawl)
 	http.HandleFunc("/api/notifications", handler.Notifications)

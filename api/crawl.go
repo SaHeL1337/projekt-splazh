@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	crawlQueue "projekt-splazh/pkg/crawl"
-	"projekt-splazh/pkg/crawl/repository"
+	"projekt-splazh/pkg/crawl"
 	"projekt-splazh/pkg/database"
 	"projekt-splazh/utils"
 	"strconv"
@@ -41,8 +40,8 @@ func Crawl(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(context.Background())
 
 	// Setup crawl repository and service
-	repo := repository.NewRepository(conn)
-	service := crawlQueue.NewService(repo)
+	repo := crawl.NewRepository(conn)
+	service := crawl.NewService(repo)
 
 	// Route based on HTTP method
 	switch r.Method {

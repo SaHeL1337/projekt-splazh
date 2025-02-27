@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"projekt-splazh/pkg/database"
 	"projekt-splazh/pkg/notifications"
-	"projekt-splazh/pkg/notifications/repository"
 	"projekt-splazh/utils"
 	"strconv"
 )
@@ -41,7 +40,7 @@ func Notifications(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(context.Background())
 
 	// Setup notifications repository and service
-	repo := repository.NewRepository(conn)
+	repo := notifications.NewRepository(conn)
 	service := notifications.NewService(repo)
 
 	// Route based on HTTP method

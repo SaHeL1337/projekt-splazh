@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"projekt-splazh/pkg/database"
 	"projekt-splazh/pkg/project"
-	"projekt-splazh/pkg/project/repository"
 	"projekt-splazh/utils"
 	"strconv"
 )
@@ -41,7 +40,7 @@ func Project(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close(context.Background())
 
 	// Setup project repository and service
-	repo := repository.NewRepository(conn)
+	repo := project.NewRepository(conn)
 	service := project.NewService(repo)
 
 	// Route based on HTTP method
