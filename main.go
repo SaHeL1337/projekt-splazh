@@ -14,6 +14,7 @@ func main() {
 	http.HandleFunc("/api/crawl", handler.Crawl)
 	http.HandleFunc("/api/notifications", handler.Notifications)
 	http.HandleFunc("/api/subscription", handler.Subscription)
+	http.HandleFunc("/api/stripe", handler.Stripe)
 
 	fmt.Println("Server starting on port 3333")
 	err := http.ListenAndServe(":3333", nil)
