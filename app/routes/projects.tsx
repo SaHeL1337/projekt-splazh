@@ -1,8 +1,9 @@
 import type { Route } from "./+types/projects";
 import { useEffect, useState, useCallback } from 'react';
-import { Table, Row, Col, Form, Input, Button, Space, Card, message } from 'antd';
+import { Table, Row, Col, Form, Input, Button, Space, Card, message, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
+import { InfoCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 
 import { FetchWithAuth } from '../services/api'
 
@@ -29,6 +30,29 @@ const tailLayout = {
   wrapperCol: { offset: 4 },
 };
 
+// URL validation rules - updated to allow trailing slash
+const urlPattern = /^(https?:\/\/)[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}\/?$/;
+const MAX_URL_LENGTH = 100;
+
+const validateUrl = (url: string) => {
+  if (!url) return false;
+  if (url.length > MAX_URL_LENGTH) return false;
+  if (!urlPattern.test(url)) return false;
+  
+  try {
+    // Allow trailing slash but no other paths
+    const urlObj = new URL(url);
+    if (urlObj.pathname !== '/' && urlObj.pathname !== '') return false;
+    
+    // No query parameters
+    if (urlObj.search !== '') return false;
+    
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
 export default function Projects({ loaderData }: Route.ComponentProps) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const navigate = useNavigate();
@@ -40,6 +64,9 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
   const [form] = Form.useForm();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingUrl, setEditingUrl] = useState<string>('');
+  const [editingUrlValid, setEditingUrlValid] = useState<boolean>(true);
+  const [newUrlValid, setNewUrlValid] = useState<boolean>(false);
+  const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
 
   // Use useCallback to memoize the fetchProjects function
   const fetchProjects = useCallback(async () => {
@@ -99,6 +126,12 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
 
   const handleUpdate = async (id: number) => {
     if (editingId === id) {
+      // Validate URL before saving
+      if (!validateUrl(editingUrl)) {
+        message.error('Please enter a valid URL (http/https, optional trailing slash only)');
+        return;
+      }
+      
       // Save the edit
       try {
         setUpdatingId(id);
@@ -109,6 +142,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
         });
         setEditingId(null);
         setEditingUrl('');
+        setEditingUrlValid(true);
         await fetchProjects(); 
       } catch (error) {
         console.error("Failed to update project:", error);
@@ -121,8 +155,21 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
       if (project) {
         setEditingId(id);
         setEditingUrl(project.url);
+        setEditingUrlValid(validateUrl(project.url));
       }
     }
+  };
+
+  const handleEditingUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setEditingUrl(url);
+    setEditingUrlValid(validateUrl(url));
+  };
+
+  const handleNewUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    // Fix the linter error by ensuring we're setting a boolean
+    setNewUrlValid(Boolean(url && validateUrl(url)));
   };
 
   const onSubmit = async (values: any) => {
@@ -135,12 +182,19 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
       });
       
       form.resetFields();
+      setNewUrlValid(false);
+      setFormSubmitted(false);
       await fetchProjects();
     } catch (error) {
       console.error("Failed to create project:", error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleFormSubmit = () => {
+    setFormSubmitted(true);
+    form.submit();
   };
 
   const columns = [
@@ -152,9 +206,27 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
         return editingId === record.id ? (
           <Input
             value={editingUrl}
-            onChange={(e) => setEditingUrl(e.target.value)}
-            onPressEnter={() => handleUpdate(record.id)}
+            onChange={handleEditingUrlChange}
+            onPressEnter={() => editingUrlValid && handleUpdate(record.id)}
             autoFocus
+            status={editingUrlValid ? '' : 'error'}
+            placeholder="https://example.com"
+            maxLength={MAX_URL_LENGTH}
+            showCount
+            suffix={
+              editingUrlValid && editingUrl ? (
+                <Space>
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                  <Tooltip title="URL must start with http:// or https://, may have a trailing slash, but no other paths or parameters">
+                    <InfoCircleOutlined style={{ color: 'rgba(0,0,0,.45)' }} />
+                  </Tooltip>
+                </Space>
+              ) : (
+                <Tooltip title="URL must start with http:// or https://, may have a trailing slash, but no other paths or parameters">
+                  <InfoCircleOutlined style={{ color: 'rgba(0,0,0,.45)' }} />
+                </Tooltip>
+              )
+            }
           />
         ) : (
           text
@@ -176,7 +248,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
             type="default"  
             onClick={() => handleUpdate(record.id)}
             loading={updatingId === record.id}
-            disabled={deletingId === record.id}
+            disabled={deletingId === record.id || (editingId === record.id && !editingUrlValid)}
           >
             {editingId === record.id ? "Save" : "Update"}
           </Button>
@@ -222,13 +294,68 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
           name="control-hooks"
           onFinish={onSubmit}
         >
-          <Form.Item name="url" label="URL" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item 
+            name="url" 
+            label="URL" 
+            rules={[
+              { required: true, message: 'Please enter a URL' },
+              { max: MAX_URL_LENGTH, message: `URL must be less than ${MAX_URL_LENGTH} characters` },
+              { 
+                pattern: urlPattern,
+                message: 'URL must start with http:// or https:// and contain a valid domain'
+              },
+              { 
+                validator: (_, value) => {
+                  if (!value) return Promise.resolve();
+                  
+                  // If it passes the pattern test but has invalid path/query
+                  if (urlPattern.test(value)) {
+                    try {
+                      const urlObj = new URL(value);
+                      if (urlObj.pathname !== '/' && urlObj.pathname !== '') {
+                        return Promise.reject(new Error('URL should not contain paths (trailing slash is allowed)'));
+                      }
+                      if (urlObj.search !== '') {
+                        return Promise.reject(new Error('URL should not contain query parameters'));
+                      }
+                    } catch (e) {
+                      // Don't show this error if pattern validation already failed
+                      // Just resolve to avoid duplicate errors
+                      return Promise.resolve();
+                    }
+                  }
+                  return Promise.resolve();
+                }
+              }
+            ]}
+            // Only validate on submit unless already submitted once
+            validateTrigger={formSubmitted ? ['onChange', 'onBlur'] : []}
+          >
+            <Input 
+              placeholder="https://example.com" 
+              maxLength={MAX_URL_LENGTH}
+              showCount
+              onChange={handleNewUrlChange}
+              suffix={
+                newUrlValid ? (
+                  <Space>
+                    <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                    <Tooltip title="URL must start with http:// or https://, may have a trailing slash, but no other paths or parameters">
+                      <InfoCircleOutlined style={{ color: 'rgba(0,0,0,.45)' }} />
+                    </Tooltip>
+                  </Space>
+                ) : (
+                  <Tooltip title="URL must start with http:// or https://, may have a trailing slash, but no other paths or parameters">
+                    <InfoCircleOutlined style={{ color: 'rgba(0,0,0,.45)' }} />
+                  </Tooltip>
+                )
+              }
+            />
           </Form.Item>
           <Form.Item {...tailLayout}>
             <Button 
               type="primary" 
-              htmlType="submit" 
+              onClick={handleFormSubmit}
               loading={submitting}
             >
               Create new Project
