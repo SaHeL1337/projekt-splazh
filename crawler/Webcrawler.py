@@ -189,10 +189,14 @@ class Webcrawler:
         return internal_links
 
     def close(self):
-        self.driver.quit()
+        if hasattr(self, 'driver'):
+            self.driver.quit()
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
     
     def crawl(self):
         # Start with the initial URL at depth 0

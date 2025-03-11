@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./crawler.log:/app/crawler.log
+    restart: unless-stopped 

@@ -128,12 +128,12 @@ export default function Landing() {
 
   const screenshots = [
     {
-      image: "/public/screenshot1.png",
+      image: "/screenshot1.png",
       title: "Projects List",
       description: "Manage all your website projects in one convenient location"
     },
     {
-      image: "/public/screenshot2.png",
+      image: "/screenshot2.png",
       title: "Comprehensive Dashboard",
       description: "Get a complete overview of your website's compliance status"
     }
