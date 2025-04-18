@@ -279,29 +279,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const startCrawl = async () => {
-    try {
-      setLoading(true);
-      const token = await getToken();
-      await FetchWithAuth(`/api/project/${id}/crawl`, token, {
-        method: 'POST',
-      });
-      notification.success({
-        message: 'Success',
-        description: 'Crawl started successfully!',
-      });
-      // Reload dashboard data after a short delay
-      setTimeout(fetchDashboardData, 2000);
-    } catch (error) {
-      console.error('Error starting crawl:', error);
-      notification.error({
-        message: 'Error',
-        description: 'Failed to start crawl. Please try again later.',
-      });
-      setLoading(false);
-    }
-  };
-
   const viewResults = () => {
     navigate(`/dashboard/project/${id}/results`);
   };
@@ -549,7 +526,7 @@ const Dashboard: React.FC = () => {
                     <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'center' }}>
                       <Button 
                         type="primary" 
-                        onClick={startCrawl} 
+                        onClick={queueCrawl} 
                         loading={loading && dashboardData !== null} 
                         disabled={crawlStatus.status === 'queued' || crawlStatus.status === 'crawling' || loading}
                         icon={<SyncOutlined />}

@@ -9,7 +9,9 @@ import {
   ReloadOutlined,
   QuestionCircleOutlined,
   CheckCircleOutlined,
-  AlertOutlined
+  AlertOutlined,
+  FilterOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import { FetchWithAuth } from '../services/api';
 import { useAuth } from '@clerk/clerk-react';
@@ -74,11 +76,14 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
   const [groupedNotifications, setGroupedNotifications] = useState<GroupedNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [activePanels, setActivePanels] = useState<string[]>([]);
   const { getToken } = useAuth();
 
   const fetchNotifications = async () => {
     setLoading(true);
     setError(null);
+    setSelectedCategory(null); // Reset filter when fetching new data
     try {
       const token = await getToken();
       const data = await FetchWithAuth(`/api/notifications?projectId=${projectId}`, token, {});
@@ -124,146 +129,198 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
   };
   
   const sortedUrls = groupedNotifications.sort((a, b) => a.url.localeCompare(b.url));
-  
-  const cardTitle = (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span>Notifications</span>
-      <Button 
-        icon={<ReloadOutlined />} 
-        onClick={fetchNotifications} 
-        size="small" 
-        loading={loading}
-        style={{ borderRadius: '4px' }}
-      />
-    </div>
-  );
 
-  // Convert Collapse children to items prop
-  const collapseItems = sortedUrls.map(({ url, notifications: urlNotifications, count }) => {
-    const categoryCounts = getCategoryCounts(urlNotifications);
+  const handleCategoryClick = (category: string, url: string, e: React.MouseEvent) => {
+    // Prevent the collapse panel from toggling when clicking on a category tag
+    e.stopPropagation();
     
-    // Generate summary tags for categories
-    const categoryTags = Object.entries(categoryCounts).map(([category, count]) => (
-      <Tag 
-        key={category} 
-        color={getCategoryColor(category)}
-        style={{ 
-          marginRight: '8px', 
-          marginBottom: '4px',
-          borderRadius: '12px',
-          padding: '0 8px'
-        }}
-      >
-        {getCategoryIcon(category)}{' '}
-        <span style={{ marginLeft: '4px' }}>{category.replace('_', ' ')} ({count})</span>
-      </Tag>
-    ));
+    // Toggle the category filter
+    if (selectedCategory === category) {
+      setSelectedCategory(null); // Clear the filter if already selected
+    } else {
+      setSelectedCategory(category); // Set the new filter
+    }
     
-    return {
-      key: url,
-      label: (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          width: '100%', 
-          alignItems: 'center', 
-          flexWrap: 'wrap',
-          padding: '8px 0'
-        }}>
-          <Space direction="vertical" size={4} style={{ maxWidth: 'calc(100% - 60px)' }}>
-            <Text strong style={{ wordBreak: 'break-word' }}>
-              {url}
-            </Text>
-            <div style={{ marginTop: '4px' }}>
-              {categoryTags}
-            </div>
-          </Space>
-          <Badge 
-            count={count} 
-            style={{ 
-              backgroundColor: '#1890ff', 
-              marginLeft: 'auto',
-              borderRadius: '14px',
-              boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)'
-            }} 
-          />
-        </div>
-      ),
-      children: (
-        <List
-          itemLayout="horizontal"
-          dataSource={urlNotifications}
+    // Make sure the panel is expanded when a category is clicked
+    if (!activePanels.includes(url)) {
+      setActivePanels([...activePanels, url]);
+    }
+  };
+  
+  const clearCategoryFilter = () => {
+    setSelectedCategory(null);
+  };
+  
+  // Get total count of filtered notifications
+  const getFilteredNotificationCount = () => {
+    if (!selectedCategory) return notifications.length;
+    
+    return notifications.filter(n => n.category === selectedCategory).length;
+  };
+  
+  // Get count of URLs with filtered notifications
+  const getFilteredUrlCount = () => {
+    if (!selectedCategory) return groupedNotifications.length;
+    
+    return groupedNotifications.filter(
+      group => group.notifications.some(n => n.category === selectedCategory)
+    ).length;
+  };
+  
+  // Handle panel change to update active panels
+  const handlePanelChange = (keys: string | string[]) => {
+    // Ensure we have an array of keys
+    const keyArray = Array.isArray(keys) ? keys : [keys];
+    setActivePanels(keyArray);
+  };
+  
+  // Function to get panel items while preserving original order
+  const getPanelItems = () => {
+    // First, create a map of all URLs from sorted order
+    const allUrlGroups = sortedUrls;
+    
+    // Then if we have a category filter, filter the groups but maintain original order
+    const filteredUrlGroups = selectedCategory 
+      ? allUrlGroups.filter(group => group.notifications.some(n => n.category === selectedCategory))
+      : allUrlGroups;
+      
+    // Map to panel items preserving order
+    return filteredUrlGroups.map(({ url, notifications: urlNotifications, count }) => {
+      const categoryCounts = getCategoryCounts(urlNotifications);
+      
+      // Filter notifications based on selected category
+      const filteredNotifications = selectedCategory 
+        ? urlNotifications.filter(n => n.category === selectedCategory)
+        : urlNotifications;
+      
+      // Generate summary tags for categories
+      const categoryTags = Object.entries(categoryCounts).map(([category, count]) => (
+        <Tag 
+          key={category} 
+          color={getCategoryColor(category)}
           style={{ 
-            background: '#f9fbfd', 
-            padding: '12px', 
-            borderRadius: '8px',
-            marginBottom: '8px'
+            marginRight: '8px', 
+            marginBottom: '4px',
+            borderRadius: '12px',
+            padding: '0 8px',
+            cursor: 'pointer',
+            // Add a border to visually indicate the selected filter
+            border: selectedCategory === category ? '2px solid #000' : undefined,
+            fontWeight: selectedCategory === category ? 'bold' : 'normal',
           }}
-          renderItem={notification => (
-            <List.Item style={{ 
-              padding: '16px', 
-              marginBottom: '8px', 
-              background: '#fff', 
+          onClick={(e) => handleCategoryClick(category, url, e)}
+        >
+          {getCategoryIcon(category)}{' '}
+          <span style={{ marginLeft: '4px' }}>{category.replace('_', ' ')} ({count})</span>
+        </Tag>
+      ));
+      
+      return {
+        key: url,
+        label: (
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            width: '100%', 
+            alignItems: 'center', 
+            flexWrap: 'wrap',
+            padding: '8px 0'
+          }}>
+            <Space direction="vertical" size={4} style={{ maxWidth: 'calc(100% - 60px)' }}>
+              <Text strong style={{ wordBreak: 'break-word' }}>
+                {url}
+              </Text>
+              <div style={{ marginTop: '4px' }}>
+                {categoryTags}
+              </div>
+            </Space>
+            <Badge 
+              count={filteredNotifications.length} 
+              style={{ 
+                backgroundColor: '#1890ff', 
+                marginLeft: 'auto',
+                borderRadius: '14px',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)'
+              }} 
+            />
+          </div>
+        ),
+        children: (
+          <List
+            itemLayout="horizontal"
+            dataSource={filteredNotifications}
+            style={{ 
+              background: '#f9fbfd', 
+              padding: '12px', 
               borderRadius: '8px',
-              border: '1px solid #f0f0f0',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)' 
-            }}>
-              <List.Item.Meta
-                avatar={
-                  <div style={{ 
-                    width: '32px', 
-                    height: '32px', 
-                    borderRadius: '50%', 
-                    background: getCategoryColor(notification.category) === 'error' ? '#fff2f0' : '#f0f5ff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: '8px',
-                    border: `1px solid ${getCategoryColor(notification.category) === 'error' ? '#ffccc7' : '#d6e4ff'}`
-                  }}>
-                    {getCategoryIcon(notification.category)}
-                  </div>
-                }
-                title={
-                  <Space align="center">
-                    <Tag 
-                      color={getCategoryColor(notification.category)}
-                      style={{
-                        padding: '2px 10px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        textTransform: 'capitalize'
+              marginBottom: '8px'
+            }}
+            renderItem={notification => (
+              <List.Item style={{ 
+                padding: '16px', 
+                marginBottom: '8px', 
+                background: '#fff', 
+                borderRadius: '8px',
+                border: '1px solid #f0f0f0',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)' 
+              }}>
+                <List.Item.Meta
+                  avatar={
+                    <div style={{ 
+                      width: '32px', 
+                      height: '32px', 
+                      borderRadius: '50%', 
+                      background: getCategoryColor(notification.category) === 'error' ? '#fff2f0' : '#f0f5ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: '8px',
+                      border: `1px solid ${getCategoryColor(notification.category) === 'error' ? '#ffccc7' : '#d6e4ff'}`
+                    }}>
+                      {getCategoryIcon(notification.category)}
+                    </div>
+                  }
+                  title={
+                    <Space align="center">
+                      <Tag 
+                        color={getCategoryColor(notification.category)}
+                        style={{
+                          padding: '2px 10px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {notification.category.replace('_', ' ')}
+                      </Tag>
+                      <Tooltip title={getCategoryDescription(notification.category)}>
+                        <QuestionCircleOutlined style={{ color: '#8c8c8c' }} />
+                      </Tooltip>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {new Date(notification.timestamp).toLocaleString()}
+                      </Text>
+                    </Space>
+                  }
+                  description={
+                    <Paragraph 
+                      style={{ 
+                        margin: '8px 0 0', 
+                        color: '#262626',
+                        fontSize: '14px',
+                        lineHeight: '1.5'
                       }}
                     >
-                      {notification.category.replace('_', ' ')}
-                    </Tag>
-                    <Tooltip title={getCategoryDescription(notification.category)}>
-                      <QuestionCircleOutlined style={{ color: '#8c8c8c' }} />
-                    </Tooltip>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {new Date(notification.timestamp).toLocaleString()}
-                    </Text>
-                  </Space>
-                }
-                description={
-                  <Paragraph 
-                    style={{ 
-                      margin: '8px 0 0', 
-                      color: '#262626',
-                      fontSize: '14px',
-                      lineHeight: '1.5'
-                    }}
-                  >
-                    {notification.message}
-                  </Paragraph>
-                }
-              />
-            </List.Item>
-          )}
-        />
-      )
-    };
-  });
+                      {notification.message}
+                    </Paragraph>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )
+      };
+    });
+  };
 
   if (loading && notifications.length === 0) {
     return (
@@ -344,23 +401,50 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
     <div className="notifications-container">
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <Text style={{ fontSize: '14px', color: '#8c8c8c' }}>
-            Showing {notifications.length} notification{notifications.length !== 1 ? 's' : ''} across {groupedNotifications.length} URL{groupedNotifications.length !== 1 ? 's' : ''}
-          </Text>
+          <Space align="center">
+            <Text style={{ fontSize: '14px', color: '#8c8c8c' }}>
+              Showing {getFilteredNotificationCount()} notification{getFilteredNotificationCount() !== 1 ? 's' : ''} across {getFilteredUrlCount()} URL{getFilteredUrlCount() !== 1 ? 's' : ''}
+            </Text>
+            {selectedCategory && (
+              <Tag 
+                color={getCategoryColor(selectedCategory)}
+                style={{ marginLeft: '8px' }}
+                closable
+                onClose={clearCategoryFilter}
+                icon={<FilterOutlined />}
+              >
+                Filtered by: {selectedCategory.replace('_', ' ')}
+              </Tag>
+            )}
+          </Space>
         </div>
-        <Button 
-          icon={<ReloadOutlined />} 
-          onClick={fetchNotifications} 
-          size="small"
-          type="text"
-          loading={loading}
-        >
-          Refresh
-        </Button>
+        <Space>
+          {selectedCategory && (
+            <Button 
+              icon={<CloseCircleOutlined />} 
+              onClick={clearCategoryFilter} 
+              size="small"
+              type="link"
+            >
+              Clear Filter
+            </Button>
+          )}
+          <Button 
+            icon={<ReloadOutlined />} 
+            onClick={fetchNotifications} 
+            size="small"
+            type="text"
+            loading={loading}
+          >
+            Refresh
+          </Button>
+        </Space>
       </div>
       
       <Collapse 
-        items={collapseItems}
+        items={getPanelItems()}
+        activeKey={activePanels}
+        onChange={handlePanelChange}
         expandIcon={({ isActive }) => 
           isActive ? 
             <DownOutlined style={{ color: '#1890ff' }} /> : 

@@ -26,7 +26,7 @@ class crawledPage:
 
 
 class Webcrawler:
-    def __init__(self, url, maxCrawlDepth=1):
+    def __init__(self, url, maxCrawlDepth=1, maxTitleLength=60):
         chrome_options = Options()
         chrome_options.add_argument('--disable-infobars')
         chrome_options.add_argument('--disable-gpu')
@@ -53,6 +53,7 @@ class Webcrawler:
         self.url = url
         self.base_domain = self.get_base_domain(url)
         self.maxCrawlDepth = maxCrawlDepth
+        self.maxTitleLength = maxTitleLength
         
         try:
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -219,6 +220,55 @@ class Webcrawler:
         except Exception as e:
             print(f"Error during cleanup: {e}")
     
+    def scanForMissingAltText(self):
+        """Check for images without alt text and create notifications for each instance"""
+        projectNotifications = []
+        images = self.driver.find_elements(By.TAG_NAME, "img")
+        missing_alt_count = 0
+        
+        for i, img in enumerate(images):
+            src = img.get_attribute("src") or "unknown source"
+            alt = img.get_attribute("alt")
+            
+            if alt is None or alt.strip() == "":
+                missing_alt_count += 1
+                # Create a descriptive message that helps identify the image
+                message = f"Image missing alt text: {src}"
+                projectNotifications.append(ProjectNotification("accessibility", message))
+        
+        # If there are multiple missing alt texts, add a summary notification
+        if missing_alt_count > 0:
+            summary = f"Found {missing_alt_count} image(s) missing alt text on this page"
+            projectNotifications.append(ProjectNotification("accessibility", summary))
+            
+        return projectNotifications
+
+    def scanForTitleIssues(self):
+        """Check for issues with the page title, such as length exceeding maximum"""
+        projectNotifications = []
+        
+        try:
+            title_element = self.driver.find_element(By.TAG_NAME, "title")
+            title_text = title_element.get_attribute("textContent")
+            
+            if title_text:
+                title_length = len(title_text)
+                
+                # Check if title exceeds maximum length
+                if title_length > self.maxTitleLength:
+                    message = f"Title length ({title_length} characters) exceeds recommended maximum of {self.maxTitleLength} characters: '{title_text}'"
+                    projectNotifications.append(ProjectNotification("seo", message))
+            else:
+                # Missing title
+                projectNotifications.append(ProjectNotification("seo", "Page is missing a title tag"))
+                
+        except Exception as e:
+            # If there's an error finding the title, it might be missing
+            projectNotifications.append(ProjectNotification("seo", "Error checking title tag"))
+            print(f"Error checking title: {e}")
+            
+        return projectNotifications
+
     def crawl(self):
         # Start with the initial URL at depth 0
         current_depth = 0
@@ -274,6 +324,14 @@ class Webcrawler:
                     
                     # Scan for external resources
                     page = self.scanPageForExternalResources(current_url)
+                    
+                    # Scan for missing alt text on images and add accessibility notifications
+                    missing_alt_notifications = self.scanForMissingAltText()
+                    page.projectNotifications.extend(missing_alt_notifications)
+                    
+                    # Scan for title issues and add SEO notifications
+                    title_notifications = self.scanForTitleIssues()
+                    page.projectNotifications.extend(title_notifications)
                     
                     # Add any redirect notifications
                     page.projectNotifications.extend(projectNotifications)

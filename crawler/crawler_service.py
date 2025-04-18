@@ -26,8 +26,9 @@ logger = logging.getLogger("crawler_service")
 load_dotenv()
 
 class CrawlerService:
-    def __init__(self, max_depth=1):
+    def __init__(self, max_depth=1, max_title_length=60):
         self.max_depth = max_depth
+        self.max_title_length = max_title_length
         self.db_url = os.getenv("DATABASE_URL")
         if not self.db_url:
             raise ValueError("DATABASE_URL environment variable not set")
@@ -210,7 +211,7 @@ class CrawlerService:
         crawler = None # Initialize crawler to None
         try:
             # Initialize webcrawler with improved functionality
-            crawler = Webcrawler(job['url'], self.max_depth)
+            crawler = Webcrawler(job['url'], self.max_depth, self.max_title_length)
             
             # Set up a callback to save pages as they're crawled
             def save_page_callback(page: crawledPage):
@@ -309,7 +310,8 @@ class CrawlerService:
 if __name__ == "__main__":
     service = None # Ensure service is defined
     try:
-        service = CrawlerService(max_depth=2) # Set desired depth
+        # Configure max depth and max title length - these could also be loaded from environment variables
+        service = CrawlerService(max_depth=2, max_title_length=60) 
         service.run()
     except KeyboardInterrupt:
         logger.info("Service stopping due to user interrupt...")

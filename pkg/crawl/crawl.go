@@ -63,7 +63,7 @@ func (r *Repository) GetStatus(ctx context.Context, projectID int) (string, int,
 
 	if queueCount > 0 {
 		// If there's an entry in the crawl_queue table, status is queued
-		return "queued", 0, nil
+		return "queued", queueCount, nil
 	}
 
 	// No entry in crawl_queue, check for entries in crawl_result table
