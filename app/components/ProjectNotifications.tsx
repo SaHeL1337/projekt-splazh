@@ -24,38 +24,66 @@ interface Notification {
   timestamp: string;
 }
 
-interface UrlWithCount {
+interface GroupedNotification {
   url: string;
   notifications: Notification[];
   count: number;
 }
+
+const getCategoryColor = (category: string): string => {
+  switch (category.toLowerCase()) {
+    case 'redirect': return 'blue';
+    case 'external_resource': return 'purple';
+    case 'crawl_error': return 'error';
+    case 'accessibility': return 'cyan';
+    case 'seo': return 'green';
+    default: return 'default';
+  }
+};
+
+const getCategoryIcon = (category: string): React.ReactNode => {
+  switch (category.toLowerCase()) {
+    case 'redirect': return <LinkOutlined />;
+    case 'external_resource': return <LinkOutlined style={{ color: 'purple' }}/>;
+    case 'crawl_error': return <WarningOutlined style={{ color: 'red' }} />;
+    case 'accessibility': return <InfoCircleOutlined style={{ color: 'cyan' }} />;
+    case 'seo': return <InfoCircleOutlined style={{ color: 'green' }} />;
+    default: return <InfoCircleOutlined />;
+  }
+};
+
+const getCategoryDescription = (category: string): string => {
+  switch (category.toLowerCase()) {
+    case 'redirect': return 'The page redirected to another URL during the crawl.';
+    case 'external_resource': return 'An external resource (like a script, CSS, or image) was loaded from a different domain.';
+    case 'crawl_error': return 'An error occurred while trying to crawl or analyze this specific page.';
+    case 'accessibility': return 'Potential accessibility issue detected.';
+    case 'seo': return 'Potential SEO issue detected.';
+    default: return 'General notification.';
+  }
+};
 
 interface ProjectNotificationsProps {
   projectId: number;
 }
 
 const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }) => {
-  const { getToken } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [groupedNotifications, setGroupedNotifications] = useState<GroupedNotification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { getToken } = useAuth();
 
   const fetchNotifications = async () => {
-    if (!projectId) return;
-    
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
       const token = await getToken();
-      const response = await FetchWithAuth(`/api/notifications?projectId=${projectId}`, token, {
-        method: "GET",
-      });
-      
-      // Ensure we always have an array
-      setNotifications(Array.isArray(response) ? response : []);
-    } catch (error) {
-      console.error("Failed to get notifications:", error);
-      setError("Failed to load notifications");
+      const data = await FetchWithAuth(`/api/notifications?projectId=${projectId}`, token, {});
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+      setError("Could not load notifications.");
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -66,83 +94,81 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
     fetchNotifications();
   }, [projectId]);
 
-  // Group notifications by URL - ensure we're working with an array
-  const groupedNotifications = (notifications || []).reduce((groups, notification) => {
-    if (!groups[notification.url]) {
-      groups[notification.url] = [];
-    }
-    groups[notification.url].push(notification);
-    return groups;
-  }, {} as Record<string, Notification[]>);
-
-  // Sort URLs by notification count (descending)
-  const sortedUrls: UrlWithCount[] = Object.entries(groupedNotifications)
-    .map(([url, urlNotifications]) => ({
+  useEffect(() => {
+    // Group notifications by URL when notifications data changes
+    const groups: { [url: string]: Notification[] } = {};
+    notifications.forEach(n => {
+      if (!groups[n.url]) {
+        groups[n.url] = [];
+      }
+      groups[n.url].push(n);
+    });
+    
+    const groupedArray: GroupedNotification[] = Object.entries(groups).map(([url, notifications]) => ({
       url,
-      notifications: urlNotifications,
-      count: urlNotifications.length
-    }))
-    .sort((a, b) => b.count - a.count);
+      notifications,
+      count: notifications.length
+    }));
+    
+    setGroupedNotifications(groupedArray);
+  }, [notifications]);
 
-  // Count notifications by category for each URL
-  const getCategoryCounts = (urlNotifications: Notification[]) => {
-    const counts: Record<string, number> = {};
-    urlNotifications.forEach(notification => {
-      counts[notification.category] = (counts[notification.category] || 0) + 1;
+  const getCategoryCounts = (notifications: Notification[]) => {
+    const counts: { [category: string]: number } = {};
+    notifications.forEach(n => {
+      counts[n.category] = (counts[n.category] || 0) + 1;
     });
     return counts;
   };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'external_resource':
-        return 'blue';
-      case 'redirect':
-        return 'red';
-      case 'performance':
-        return 'orange';
-      default:
-        return 'default';
-    }
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'external_resource':
-        return <LinkOutlined />;
-      case 'redirect':
-        return <WarningOutlined />;
-      case 'performance':
-        return <InfoCircleOutlined />;
-      default:
-        return <InfoCircleOutlined />;
-    }
-  };
-
-  const getCategoryDescription = (category: string) => {
-    switch (category) {
-      case 'external_resource':
-        return 'External resources are files or services loaded from domains other than your website. These may include scripts, images, fonts, or other content.';
-      case 'security':
-        return 'Security issues that may affect your website or users.';
-      case 'performance':
-        return 'Issues that may impact the loading speed or performance of your website.';
-      default:
-        return 'General notification';
-    }
-  };
-
+  
+  const sortedUrls = groupedNotifications.sort((a, b) => a.url.localeCompare(b.url));
+  
   const cardTitle = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <span>Notifications</span>
-      <Button 
-        icon={<ReloadOutlined />} 
-        onClick={fetchNotifications} 
-        loading={loading}
-        type="text"
-      />
+      <Button icon={<ReloadOutlined />} onClick={fetchNotifications} size="small" loading={loading} />
     </div>
   );
+
+  // Convert Collapse children to items prop
+  const collapseItems = sortedUrls.map(({ url, notifications: urlNotifications, count }) => {
+    const categoryCounts = getCategoryCounts(urlNotifications);
+    return {
+      key: url,
+      label: (
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap' }}>
+          <Text strong style={{ wordBreak: 'break-word', maxWidth: 'calc(100% - 50px)' }}>
+            {url}
+          </Text>
+          <Badge count={count} style={{ backgroundColor: '#1890ff', marginLeft: 'auto' }} />
+        </div>
+      ),
+      children: (
+        <List
+          itemLayout="horizontal"
+          dataSource={urlNotifications}
+          renderItem={notification => (
+            <List.Item>
+              <List.Item.Meta
+                avatar={getCategoryIcon(notification.category)}
+                title={
+                  <Space>
+                    <Tag color={getCategoryColor(notification.category)}>
+                      {notification.category.replace('_', ' ')}
+                    </Tag>
+                    <Tooltip title={getCategoryDescription(notification.category)}>
+                      <QuestionCircleOutlined style={{ color: '#999' }} />
+                    </Tooltip>
+                  </Space>
+                }
+                description={<Text>{notification.message}</Text>}
+              />
+            </List.Item>
+          )}
+        />
+      )
+    };
+  });
 
   return (
     <Card title={cardTitle} className="notifications-card">
@@ -158,68 +184,11 @@ const ProjectNotifications: React.FC<ProjectNotificationsProps> = ({ projectId }
         <Empty description="No notifications found" />
       ) : (
         <Collapse 
+          items={collapseItems} // Use items prop here
           expandIcon={({ isActive }) => isActive ? <DownOutlined /> : <RightOutlined />}
           className="url-collapse"
         >
-          {sortedUrls.map(({ url, notifications: urlNotifications, count }) => {
-            const categoryCounts = getCategoryCounts(urlNotifications);
-            
-            return (
-              <Panel 
-                key={url} 
-                header={
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    width: '100%',
-                    flexWrap: 'wrap'
-                  }}>
-                    <Text 
-                      strong 
-                      style={{ 
-                        wordBreak: 'break-word', 
-                        maxWidth: 'calc(100% - 50px)'
-                      }}
-                    >
-                      {url}
-                    </Text>
-                    <Badge 
-                      count={count} 
-                      style={{ 
-                        backgroundColor: '#1890ff',
-                        marginLeft: 'auto'
-                      }}
-                    />
-                  </div>
-                }
-              >
-                <List
-                  itemLayout="horizontal"
-                  dataSource={urlNotifications}
-                  renderItem={notification => (
-                    <List.Item>
-                      <List.Item.Meta
-                        avatar={getCategoryIcon(notification.category)}
-                        title={
-                          <Space>
-                            <Tag color={getCategoryColor(notification.category)}>
-                              {notification.category.replace('_', ' ')}
-                            </Tag>
-                            <Tooltip title={getCategoryDescription(notification.category)}>
-                              <QuestionCircleOutlined style={{ color: '#999' }} />
-                            </Tooltip>
-                          </Space>
-                        }
-                        description={
-                          <Text>{notification.message}</Text>
-                        }
-                      />
-                    </List.Item>
-                  )}
-                />
-              </Panel>
-            );
-          })}
+          {/* Removed direct Panel children */}
         </Collapse>
       )}
     </Card>

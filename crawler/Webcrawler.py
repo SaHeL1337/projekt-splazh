@@ -3,6 +3,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.relative_locator import locate_with
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 import json
 import queue
 import logging
@@ -10,6 +11,7 @@ import time
 from collections import deque
 from urllib.parse import urlparse
 import re
+import os
 
 class ProjectNotification:
     def __init__(self, category, message):
@@ -33,25 +35,44 @@ class Webcrawler:
         chrome_options.add_argument('--disable-notifications')
         chrome_options.add_argument('--disable-default-apps')
         chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
         chrome_options.add_experimental_option('useAutomationExtension', False)
-        cloud_options = {}
-        cloud_options['browser'] = "ALL"
-        cloud_options['performance'] = "INFO"
-        chrome_options.set_capability('goog:loggingPrefs', cloud_options)
+        
+        chromedriver_path = os.getenv("CHROMEDRIVER_PATH", "/usr/bin/chromedriver") 
+        service = Service(executable_path=chromedriver_path)
+
+        logging_prefs = {
+            'performance': 'INFO', 
+            'browser': 'INFO'
+        }
+        chrome_options.set_capability('goog:loggingPrefs', logging_prefs)
 
         self.url = url
         self.base_domain = self.get_base_domain(url)
         self.maxCrawlDepth = maxCrawlDepth
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.linksVisited = set()
-        self.rawPages = []  # Changed to list to maintain order
-        self.callback = None  # Add callback attribute
         
-        # Define non-website file extensions to ignore
+        try:
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            logging.info("WebDriver initialized successfully.")
+        except Exception as e:
+            logging.error(f"Failed to initialize WebDriver: {e}", exc_info=True)
+            try:
+                browser_logs = service.get_log('browser') if service else []
+                if browser_logs:
+                    logging.error("Browser logs during startup failure:")
+                    for entry in browser_logs:
+                        logging.error(entry)
+            except Exception as log_e:
+                logging.error(f"Could not retrieve browser logs: {log_e}")
+            raise
+            
+        self.linksVisited = set()
+        self.rawPages = []
+        self.callback = None
+        
         self.ignored_extensions = [
             '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
             '.zip', '.rar', '.tar', '.gz', '.7z', '.exe', '.msi', '.apk',
@@ -224,6 +245,15 @@ class Webcrawler:
                 try:
                     print(f"Crawling {url} at depth {current_depth}/{self.maxCrawlDepth}")
                     
+                    # --- Attempt to clear performance log buffer before navigation ---
+                    try:
+                        # Calling get_log might clear the buffer for the next call
+                        self.driver.get_log('performance') 
+                    except Exception: 
+                        # Ignore errors (e.g., log buffer not supported/empty)
+                        pass 
+                    # ------------------------------------------------------------------
+
                     # Navigate to URL and handle redirects
                     redirect_info = self.navigate_to_url(url)
                     

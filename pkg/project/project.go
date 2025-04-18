@@ -3,15 +3,17 @@ package project
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
 // Project represents a project entity
 type Project struct {
-	ID        int       `json:"id"`
-	UserID    string    `json:"userid"`
-	URL       string    `json:"url"`
+	ID        int        `json:"id"`
+	UserID    string     `json:"userid"`
+	URL       string     `json:"url"`
+	LastCrawl *time.Time `json:"lastcrawl,omitempty"`
 }
 
 // Repository handles database operations for projects
@@ -29,7 +31,7 @@ func NewRepository(db *pgx.Conn) *Repository {
 // GetByID retrieves a project by ID
 func (r *Repository) GetByID(ctx context.Context, id int) (*Project, error) {
 	query := `
-		SELECT id, user_id, url 
+		SELECT id, user_id, url, last_crawl
 		FROM projects 
 		WHERE id = @id
 	`
@@ -42,6 +44,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Project, error) {
 		&project.ID,
 		&project.UserID,
 		&project.URL,
+		&project.LastCrawl,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get project: %w", err)
@@ -53,7 +56,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*Project, error) {
 // GetByUserID retrieves all projects for a user
 func (r *Repository) GetByUserID(ctx context.Context, userID string) ([]Project, error) {
 	query := `
-		SELECT id, user_id, url
+		SELECT id, user_id, url, last_crawl
 		FROM projects 
 		WHERE user_id = @userID
 		ORDER BY id DESC
@@ -75,6 +78,7 @@ func (r *Repository) GetByUserID(ctx context.Context, userID string) ([]Project,
 			&project.ID,
 			&project.UserID,
 			&project.URL,
+			&project.LastCrawl,
 		); err != nil {
 			return nil, fmt.Errorf("unable to scan project: %w", err)
 		}
