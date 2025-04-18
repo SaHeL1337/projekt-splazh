@@ -13,7 +13,7 @@ import { rootAuthLoader } from '@clerk/react-router/ssr.server'
 import '@fontsource/roboto/400.css';
 import type { Route } from "./+types/root";
 import "./app.css";
-import { Layout as L, theme } from 'antd';
+import { Layout as L, theme, Typography, Result, Button } from 'antd';
 const { Content } = L;
 import { ConfigProvider } from 'antd';
 import React from 'react';
@@ -43,18 +43,25 @@ function AppLayout() {
   return (
     <>
     <SignedIn>
-    <L style={{height:"100vh"}}>
+    <L style={{ height: "100vh" }}>
       <Menu/>
       <L className="layout">
         <MyHeader/>
-        <Content className="content" style={{ margin: '24px 16px 0'}}>
+        <Content 
+          className="content" 
+          style={{ 
+            padding: '24px',
+            backgroundColor: '#f5f7fa'
+          }}
+        >
           <div
             style={{
-              padding: 24,
-              minHeight: 360,
+              maxWidth: '1400px',
+              margin: '0 auto',
+              width: '100%'
             }}
           >
-          <Outlet />
+            <Outlet />
           </div>
         </Content>
         <MyFooter />
@@ -79,11 +86,44 @@ export default function App({ loaderData }: Route.ComponentProps) {
     theme={{
       token: {
         fontSize: 15,
+        colorPrimary: '#1890ff',
+        borderRadius: 6,
+        wireframe: false
       },
       algorithm: theme.defaultAlgorithm,
       components: {
         Layout: {
           headerBg: '#fff',
+          bodyBg: '#f5f7fa',
+          headerPadding: '0 24px',
+        },
+        Menu: {
+          itemHeight: 48,
+          itemHoverBg: 'rgba(24, 144, 255, 0.1)',
+          itemSelectedBg: 'rgba(24, 144, 255, 0.1)',
+          itemSelectedColor: '#1890ff',
+        },
+        Card: {
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          borderRadius: 8,
+        },
+        Button: {
+          borderRadius: 6,
+          paddingInline: 16,
+        },
+        Table: {
+          borderRadius: 8,
+          headerBg: '#fafafa',
+        },
+        Select: {
+          optionSelectedBg: 'rgba(24, 144, 255, 0.1)',
+          borderRadius: 6,
+        },
+        Input: {
+          borderRadius: 6,
+        },
+        Tag: {
+          borderRadius: 4,
         }
       }
     }}>
@@ -130,14 +170,46 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
+    <ConfigProvider>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        background: '#f5f7fa' 
+      }}>
+        <Result
+          status={isRouteErrorResponse(error) && error.status === 404 ? "404" : "error"}
+          title={message}
+          subTitle={details}
+          extra={
+            <Button type="primary" onClick={() => window.location.href = "/"}>
+              Back Home
+            </Button>
+          }
+        />
+        {stack && (
+          <div style={{ 
+            maxWidth: '800px',
+            margin: '24px auto',
+            background: '#fff',
+            padding: '16px',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            overflow: 'auto'
+          }}>
+            <Typography.Title level={5}>Error Details</Typography.Title>
+            <pre style={{ 
+              background: '#f9f9f9',
+              padding: '16px',
+              borderRadius: '4px',
+              overflow: 'auto'
+            }}>
+              <code>{stack}</code>
+            </pre>
+          </div>
+        )}
+      </div>
+    </ConfigProvider>
   );
 }
