@@ -110,6 +110,78 @@ const categoryMetadata: Record<string, {
     severity: 'critical',
     actionable: true,
     suggestedAction: 'Address security concern immediately.'
+  },
+  'error_4xx': { 
+    color: 'red', 
+    icon: <CloseCircleOutlined style={{ color: 'red' }} />,
+    description: 'Client error HTTP status code (4xx) detected.',
+    severity: 'critical',
+    actionable: true,
+    suggestedAction: 'Fix the URL or page that is returning a client error.'
+  },
+  'error_5xx': { 
+    color: 'red', 
+    icon: <CloseCircleOutlined style={{ color: 'red' }} />,
+    description: 'Server error HTTP status code (5xx) detected.',
+    severity: 'critical',
+    actionable: true,
+    suggestedAction: 'Investigate and fix the server issue.'
+  },
+  'broken_link': { 
+    color: 'red', 
+    icon: <LinkOutlined style={{ color: 'red' }} />,
+    description: 'A broken link was detected on the page.',
+    severity: 'warning',
+    actionable: true,
+    suggestedAction: 'Fix or remove the broken link.'
+  },
+  'large_image': { 
+    color: 'orange', 
+    icon: <FileTextOutlined style={{ color: 'orange' }} />,
+    description: 'An image with a large file size was detected.',
+    severity: 'warning',
+    actionable: true,
+    suggestedAction: 'Optimize the image to reduce file size.'
+  },
+  'noindex': { 
+    color: 'gold', 
+    icon: <ExclamationCircleOutlined style={{ color: 'gold' }} />,
+    description: 'The page contains a noindex directive.',
+    severity: 'warning',
+    actionable: true,
+    suggestedAction: 'Verify if the page should be excluded from search engines.'
+  },
+  'nofollow': { 
+    color: 'gold', 
+    icon: <ExclamationCircleOutlined style={{ color: 'gold' }} />,
+    description: 'The page contains a nofollow directive.',
+    severity: 'warning',
+    actionable: true,
+    suggestedAction: 'Verify if links on this page should not be followed by search engines.'
+  },
+  'h1_missing': { 
+    color: 'orange', 
+    icon: <FileTextOutlined style={{ color: 'orange' }} />,
+    description: 'The page is missing an H1 heading tag.',
+    severity: 'warning',
+    actionable: true,
+    suggestedAction: 'Add an H1 heading tag to improve SEO.'
+  },
+  'multiple_h1': { 
+    color: 'orange', 
+    icon: <FileTextOutlined style={{ color: 'orange' }} />,
+    description: 'The page has multiple H1 heading tags.',
+    severity: 'warning',
+    actionable: true,
+    suggestedAction: 'Use only one H1 tag per page for better SEO.'
+  },
+  'no_https': { 
+    color: 'red', 
+    icon: <WarningOutlined style={{ color: 'red' }} />,
+    description: 'The page is using insecure HTTP instead of HTTPS.',
+    severity: 'critical',
+    actionable: true,
+    suggestedAction: 'Update to HTTPS for better security and SEO.'
   }
 };
 

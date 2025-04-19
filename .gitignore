@@ -7,6 +7,8 @@
 
 .env
 
+cursor.md
+
 /crawler/env
 /crawler/__pycache__
 /crawler/crawler.log

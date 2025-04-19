@@ -269,6 +269,207 @@ class Webcrawler:
             
         return projectNotifications
 
+    def scanForResponseCodes(self, url):
+        """Check the HTTP response code of the current page"""
+        projectNotifications = []
+        
+        # Get performance logs to check for HTTP status codes
+        logs = self.driver.get_log('performance')
+        
+        error_urls = {}  # To track unique URLs with error status
+        
+        for log in logs:
+            if 'message' in log:
+                try:
+                    message_json = json.loads(log['message'])
+                    message = message_json.get('message', {})
+                    
+                    # Look for responseReceived events
+                    if message.get('method') == 'Network.responseReceived':
+                        params = message.get('params', {})
+                        response = params.get('response', {})
+                        request_url = response.get('url', '')
+                        status = response.get('status', 0)
+                        
+                        # Check if this is a 4xx or 5xx response
+                        if status >= 400:
+                            # Only add if not already added (avoid duplicates)
+                            if request_url not in error_urls or error_urls[request_url] != status:
+                                error_category = "error_5xx" if status >= 500 else "error_4xx"
+                                message = f"URL {request_url} returned HTTP status {status}"
+                                projectNotifications.append(ProjectNotification(error_category, message))
+                                error_urls[request_url] = status
+                except json.JSONDecodeError:
+                    pass  # Skip malformed JSON in logs
+        
+        return projectNotifications
+
+    def scanForBrokenLinks(self):
+        """Check for broken links (href attributes that don't work)"""
+        projectNotifications = []
+        
+        # Find all links on the page
+        links = self.driver.find_elements(By.TAG_NAME, "a")
+        
+        for link in links:
+            try:
+                href = link.get_attribute("href")
+                
+                # Skip empty or javascript links
+                if not href or href.startswith("javascript:") or href == "#":
+                    continue
+                
+                # Get link text for better identification
+                link_text = link.text.strip() or "(No text)"
+                if len(link_text) > 30:
+                    link_text = link_text[:27] + "..."
+                
+                # Use the performance logs from scanForResponseCodes to identify broken links
+                # We'll check these links without navigating to them
+                try:
+                    import requests
+                    from requests.exceptions import RequestException
+                    
+                    # Make a HEAD request to check if the link is broken
+                    # Set a short timeout to avoid waiting too long
+                    response = requests.head(href, timeout=3, allow_redirects=True)
+                    
+                    if response.status_code >= 400:
+                        message = f"Broken link: {href} (Text: '{link_text}') - Status: {response.status_code}"
+                        projectNotifications.append(ProjectNotification("broken_link", message))
+                except RequestException as e:
+                    message = f"Broken link: {href} (Text: '{link_text}') - Error: Connection failed"
+                    projectNotifications.append(ProjectNotification("broken_link", message))
+            except Exception as e:
+                # Skip links that cause errors when checking attributes
+                pass
+        
+        return projectNotifications
+
+    def scanForLargeImages(self):
+        """Check for images that have large file sizes"""
+        projectNotifications = []
+        max_size_bytes = 500 * 1024  # 500 KB
+        
+        # Get all network requests from performance logs
+        logs = self.driver.get_log('performance')
+        
+        image_sizes = {}
+        
+        for log in logs:
+            if 'message' in log:
+                try:
+                    message_json = json.loads(log['message'])
+                    message = message_json.get('message', {})
+                    
+                    # Look for Network.responseReceived events for images
+                    if message.get('method') == 'Network.responseReceived':
+                        params = message.get('params', {})
+                        response = params.get('response', {})
+                        url = response.get('url', '')
+                        mime_type = response.get('mimeType', '')
+                        encoded_data_length = response.get('encodedDataLength', 0)
+                        
+                        # Check if it's an image and track its size
+                        if mime_type and mime_type.startswith('image/'):
+                            image_sizes[url] = encoded_data_length
+                except Exception:
+                    pass
+        
+        # Report images that exceed the maximum size
+        for url, size in image_sizes.items():
+            if size > max_size_bytes:
+                size_kb = size / 1024
+                message = f"Large image: {url} - Size: {size_kb:.1f} KB (exceeds {max_size_bytes/1024:.0f} KB)"
+                projectNotifications.append(ProjectNotification("large_image", message))
+        
+        return projectNotifications
+
+    def scanForNoIndexNoFollow(self):
+        """Check for noindex or nofollow directives in meta tags or HTTP headers"""
+        projectNotifications = []
+        
+        # Check for robots meta tag with noindex or nofollow
+        meta_robots_tags = self.driver.find_elements(By.CSS_SELECTOR, "meta[name='robots'], meta[name='googlebot']")
+        
+        has_noindex = False
+        has_nofollow = False
+        
+        for tag in meta_robots_tags:
+            content = tag.get_attribute("content").lower()
+            if "noindex" in content:
+                has_noindex = True
+                message = f"Page contains noindex directive: {content}"
+                projectNotifications.append(ProjectNotification("noindex", message))
+            
+            if "nofollow" in content:
+                has_nofollow = True
+                message = f"Page contains nofollow directive: {content}"
+                projectNotifications.append(ProjectNotification("nofollow", message))
+        
+        # Check HTTP headers for X-Robots-Tag
+        logs = self.driver.get_log('performance')
+        
+        for log in logs:
+            if 'message' in log:
+                try:
+                    message_json = json.loads(log['message'])
+                    message = message_json.get('message', {})
+                    
+                    if message.get('method') == 'Network.responseReceived':
+                        params = message.get('params', {})
+                        response = params.get('response', {})
+                        headers = response.get('headers', {})
+                        
+                        # Check for X-Robots-Tag header
+                        robots_header = headers.get('x-robots-tag', '')
+                        if robots_header:
+                            if 'noindex' in robots_header.lower() and not has_noindex:
+                                message = f"HTTP header contains noindex directive: {robots_header}"
+                                projectNotifications.append(ProjectNotification("noindex", message))
+                            
+                            if 'nofollow' in robots_header.lower() and not has_nofollow:
+                                message = f"HTTP header contains nofollow directive: {robots_header}"
+                                projectNotifications.append(ProjectNotification("nofollow", message))
+                except Exception:
+                    pass
+        
+        return projectNotifications
+
+    def scanForH1Issues(self):
+        """Check for multiple H1 tags or missing H1 tags"""
+        projectNotifications = []
+        
+        # Find all H1 tags on the page
+        h1_tags = self.driver.find_elements(By.TAG_NAME, "h1")
+        h1_count = len(h1_tags)
+        
+        if h1_count == 0:
+            message = "Page is missing an H1 tag"
+            projectNotifications.append(ProjectNotification("h1_missing", message))
+        elif h1_count > 1:
+            h1_texts = [tag.text for tag in h1_tags]
+            h1_summary = ", ".join([f'"{text}"' for text in h1_texts[:3]])
+            if h1_count > 3:
+                h1_summary += f", and {h1_count - 3} more"
+            
+            message = f"Page has {h1_count} H1 tags (recommended: 1): {h1_summary}"
+            projectNotifications.append(ProjectNotification("multiple_h1", message))
+        
+        return projectNotifications
+
+    def scanForHttps(self):
+        """Check if the page is using HTTPS"""
+        projectNotifications = []
+        
+        current_url = self.driver.current_url
+        
+        if current_url.startswith("http:"):
+            message = f"Page is using insecure HTTP: {current_url}"
+            projectNotifications.append(ProjectNotification("no_https", message))
+        
+        return projectNotifications
+
     def crawl(self):
         # Start with the initial URL at depth 0
         current_depth = 0
@@ -332,6 +533,30 @@ class Webcrawler:
                     # Scan for title issues and add SEO notifications
                     title_notifications = self.scanForTitleIssues()
                     page.projectNotifications.extend(title_notifications)
+                    
+                    # Scan for response codes
+                    response_code_notifications = self.scanForResponseCodes(current_url)
+                    page.projectNotifications.extend(response_code_notifications)
+                    
+                    # Scan for broken links
+                    broken_link_notifications = self.scanForBrokenLinks()
+                    page.projectNotifications.extend(broken_link_notifications)
+                    
+                    # Scan for large images
+                    large_image_notifications = self.scanForLargeImages()
+                    page.projectNotifications.extend(large_image_notifications)
+                    
+                    # Scan for noindex/nofollow
+                    indexing_notifications = self.scanForNoIndexNoFollow()
+                    page.projectNotifications.extend(indexing_notifications)
+                    
+                    # Scan for H1 issues
+                    h1_notifications = self.scanForH1Issues()
+                    page.projectNotifications.extend(h1_notifications)
+                    
+                    # Scan for HTTPS
+                    https_notifications = self.scanForHttps()
+                    page.projectNotifications.extend(https_notifications)
                     
                     # Add any redirect notifications
                     page.projectNotifications.extend(projectNotifications)

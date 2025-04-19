@@ -87,6 +87,15 @@ const getCategoryColor = (category: string): string => {
     case 'crawl_error': return '#f5222d'; // red
     case 'accessibility': return '#13c2c2'; // cyan
     case 'seo': return '#52c41a'; // green
+    case 'error_4xx': return '#f5222d'; // red
+    case 'error_5xx': return '#f5222d'; // red
+    case 'broken_link': return '#f5222d'; // red
+    case 'large_image': return '#fa8c16'; // orange
+    case 'noindex': return '#faad14'; // gold
+    case 'nofollow': return '#faad14'; // gold
+    case 'h1_missing': return '#fa8c16'; // orange
+    case 'multiple_h1': return '#fa8c16'; // orange
+    case 'no_https': return '#f5222d'; // red
     default: return '#d9d9d9'; // grey
   }
 };
