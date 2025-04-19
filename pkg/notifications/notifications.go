@@ -70,6 +70,24 @@ func (r *Repository) GetByProjectID(ctx context.Context, projectID int) ([]Notif
 	return notifications, nil
 }
 
+// DeleteByProjectID deletes all notifications for a specific project
+func (r *Repository) DeleteByProjectID(ctx context.Context, projectID int) error {
+	query := `
+		DELETE FROM project_notifications 
+		WHERE project_id = @projectId
+	`
+	args := pgx.NamedArgs{
+		"projectId": projectID,
+	}
+
+	_, err := r.db.Exec(ctx, query, args)
+	if err != nil {
+		return fmt.Errorf("unable to delete project notifications: %w", err)
+	}
+
+	return nil
+}
+
 // Service for notifications
 type Service struct {
 	repo *Repository
@@ -85,4 +103,9 @@ func NewService(repo *Repository) *Service {
 // GetByProjectID gets notifications for a project
 func (s *Service) GetByProjectID(ctx context.Context, projectID int) ([]Notification, error) {
 	return s.repo.GetByProjectID(ctx, projectID)
+}
+
+// DeleteByProjectID deletes all notifications for a project
+func (s *Service) DeleteByProjectID(ctx context.Context, projectID int) error {
+	return s.repo.DeleteByProjectID(ctx, projectID)
 }

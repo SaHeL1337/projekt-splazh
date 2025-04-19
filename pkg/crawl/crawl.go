@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"projekt-splazh/pkg/notifications"
 )
 
 // Crawl_Queue represents a crawl job entity
@@ -28,15 +29,38 @@ func NewRepository(db *pgx.Conn) *Repository {
 
 // Create adds a new crawl job to the queue
 func (r *Repository) Create(ctx context.Context, projectID int) error {
-	query := `
-		INSERT INTO crawl_queue (project_id, time_start)
-		VALUES (@projectID, NOW())
+	// First, delete any existing crawl results for this project
+	deleteQuery := `
+		DELETE FROM crawl_result
+		WHERE project_id = @projectID
 	`
-	args := pgx.NamedArgs{
+	deleteArgs := pgx.NamedArgs{
 		"projectID": projectID,
 	}
 
-	_, err := r.db.Exec(ctx, query, args)
+	_, err := r.db.Exec(ctx, deleteQuery, deleteArgs)
+	if err != nil {
+		return fmt.Errorf("unable to clean previous crawl results: %w", err)
+	}
+
+	// Delete existing notifications for this project
+	notificationRepo := notifications.NewRepository(r.db)
+	notificationService := notifications.NewService(notificationRepo)
+	err = notificationService.DeleteByProjectID(ctx, projectID)
+	if err != nil {
+		return fmt.Errorf("unable to clean previous notifications: %w", err)
+	}
+
+	// Then add the new crawl job to the queue
+	insertQuery := `
+		INSERT INTO crawl_queue (project_id, time_start)
+		VALUES (@projectID, NOW())
+	`
+	insertArgs := pgx.NamedArgs{
+		"projectID": projectID,
+	}
+
+	_, err = r.db.Exec(ctx, insertQuery, insertArgs)
 	if err != nil {
 		return fmt.Errorf("unable to create crawl job: %w", err)
 	}
@@ -61,12 +85,7 @@ func (r *Repository) GetStatus(ctx context.Context, projectID int) (string, int,
 		return "unknown", 0, fmt.Errorf("unable to check crawl queue: %w", err)
 	}
 
-	if queueCount > 0 {
-		// If there's an entry in the crawl_queue table, status is queued
-		return "queued", queueCount, nil
-	}
-
-	// No entry in crawl_queue, check for entries in crawl_result table
+	// Check for entries in crawl_result table
 	resultQuery := `
 		SELECT COUNT(*) FROM crawl_result
 		WHERE project_id = @projectID
@@ -81,13 +100,24 @@ func (r *Repository) GetStatus(ctx context.Context, projectID int) (string, int,
 		return "unknown", 0, fmt.Errorf("unable to check crawl results: %w", err)
 	}
 
-	if resultCount > 0 {
-		// If there are entries in the crawl_result table but none in crawl_queue, status is completed
-		return "completed", resultCount, nil
+	// Determine status based on queue and result counts
+	if queueCount > 0 {
+		if resultCount == 0 {
+			// Entry in crawl_queue, but none in crawl_results
+			return "queued", 0, nil
+		} else {
+			// Entry in crawl_queue, at least one entry in crawl_results
+			return "in progress", resultCount, nil
+		}
+	} else {
+		if resultCount > 0 {
+			// No entry in crawl_queue, at least one entry in crawl_results
+			return "completed", resultCount, nil
+		} else {
+			// No entries in either table
+			return "not_started", 0, nil
+		}
 	}
-
-	// No entries in either table, status is not_started
-	return "not_started", 0, nil
 }
 
 // Service handles business logic for crawl operations

@@ -63,7 +63,7 @@ const getStatusTag = (status: string | null | undefined) => {
     case 'completed':
       return <Tag icon={<CheckCircleOutlined />} color="success">Completed</Tag>;
     case 'crawling':
-    case 'processing':
+    case 'in progress':
       return <Tag icon={<SyncOutlined spin />} color="processing">Crawling</Tag>;
     case 'queued':
       return <Tag icon={<ClockCircleOutlined />} color="blue">Queued</Tag>;
@@ -72,6 +72,7 @@ const getStatusTag = (status: string | null | undefined) => {
     case 'idle':
     case 'never':
     case 'not crawled':
+    case 'not_started':
     case 'unknown':
       return <Tag icon={<ClockCircleOutlined />} color="default">Not Crawled</Tag>;
     default:
@@ -156,7 +157,7 @@ const Dashboard: React.FC = () => {
             ]);
 
             setLoadingDetails(false);
-            intervalId = setInterval(pollCrawlStatus, 5000);
+            intervalId = setInterval(pollCrawlStatus, 1000);
         } else {
             setLoadingDetails(false);
             setProject(null);
@@ -332,6 +333,12 @@ const Dashboard: React.FC = () => {
     return `${datum.label || 'Unknown'}: ${datum.value} (${percentage}%)`;
   };
 
+  // Helper function to check if a crawl is in progress
+  const isCrawlInProgress = () => {
+    const status = crawlStatus.status?.toLowerCase();
+    return status === 'queued' || status === 'crawling' || status === 'in progress';
+  };
+
   if (!id) {
     return (
       <Card className="shadow-md rounded-lg">
@@ -416,45 +423,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div style={{ width: '100%', margin: '0 auto' }}>
-      {/* Project URL Display and Search */}
-      <Card 
-        className="shadow-sm rounded-lg mb-6" 
-        style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-        bodyStyle={{ padding: 0 }}
-      >
-        <div style={{ 
-          padding: '16px 24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          borderBottom: '1px solid #f0f0f0', 
-          background: '#fafafa',
-          borderTopLeftRadius: '8px',
-          borderTopRightRadius: '8px'
-        }}>
-          <div>
-            <span style={{ color: '#8c8c8c', marginRight: '8px' }}>Dashboard</span>
-            <span style={{ color: '#d9d9d9' }}>/</span>
-          </div>
-          <a 
-            href={project.url} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={{ 
-              marginLeft: '8px',
-              color: '#1890ff',
-              fontWeight: 500,
-              textDecoration: 'none',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              maxWidth: '50%'
-            }}
-          >
-            {project.url}
-          </a>
-        </div>
-      </Card>
-      
       {/* Project Overview and Stats */}
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={24}>
@@ -502,7 +470,11 @@ const Dashboard: React.FC = () => {
                   </Col>
                   
                   <Col xs={24} md={12}>
-                    <Card className="inner-card" bordered={false} style={{ background: '#f9f9f9', borderRadius: '8px' }}>
+                    <Card className="inner-card" bordered={false} style={{ 
+                      background: isCrawlInProgress() ? '#e6f7ff' : '#f9f9f9', 
+                      borderRadius: '8px',
+                      borderLeft: isCrawlInProgress() ? '4px solid #1890ff' : 'none' 
+                    }}>
                       <Statistic 
                         title={<div style={{ display: 'flex', alignItems: 'center' }}><ClockCircleOutlined style={{ marginRight: '8px' }} />Crawl Status</div>}
                         value=" " 
@@ -513,7 +485,11 @@ const Dashboard: React.FC = () => {
                   </Col>
                   
                   <Col xs={24} md={12}>
-                    <Card className="inner-card" bordered={false} style={{ background: '#f9f9f9', borderRadius: '8px' }}>
+                    <Card className="inner-card" bordered={false} style={{ 
+                      background: isCrawlInProgress() ? '#e6f7ff' : '#f9f9f9', 
+                      borderRadius: '8px',
+                      borderLeft: isCrawlInProgress() ? '4px solid #1890ff' : 'none' 
+                    }}>
                       <Statistic 
                         title={<div style={{ display: 'flex', alignItems: 'center' }}><FileTextOutlined style={{ marginRight: '8px' }} />Pages Crawled</div>}
                         value={crawlStatus.pagesCrawled ?? 0}
@@ -527,8 +503,8 @@ const Dashboard: React.FC = () => {
                       <Button 
                         type="primary" 
                         onClick={queueCrawl} 
-                        loading={loading && dashboardData !== null} 
-                        disabled={crawlStatus.status === 'queued' || crawlStatus.status === 'crawling' || loading}
+                        loading={loading} 
+                        disabled={isCrawlInProgress() || loading}
                         icon={<SyncOutlined />}
                         size="large"
                         style={{ 
@@ -538,7 +514,9 @@ const Dashboard: React.FC = () => {
                           boxShadow: '0 2px 0 rgba(0, 0, 0, 0.045)'
                         }}
                       >
-                        {crawlStatus.status === 'crawling' ? 'Crawling...' : (crawlStatus.status === 'queued' ? 'Queued' : 'Start New Crawl')}
+                        {(crawlStatus.status?.toLowerCase() === 'crawling' || crawlStatus.status?.toLowerCase() === 'in progress')
+                          ? 'Crawling in Progress...' 
+                          : (crawlStatus.status?.toLowerCase() === 'queued' ? 'Queued for Crawling' : 'Start New Crawl')}
                       </Button>
                     </div>
                   </Col>
