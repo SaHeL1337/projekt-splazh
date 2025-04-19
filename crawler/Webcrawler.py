@@ -12,6 +12,9 @@ from collections import deque
 from urllib.parse import urlparse
 import re
 import os
+import concurrent.futures
+import threading
+from functools import lru_cache
 
 class ProjectNotification:
     def __init__(self, category, message):
@@ -26,7 +29,7 @@ class crawledPage:
 
 
 class Webcrawler:
-    def __init__(self, url, maxCrawlDepth=1, maxTitleLength=60):
+    def __init__(self, url, maxCrawlDepth=1, maxTitleLength=60, max_workers=10):
         chrome_options = Options()
         chrome_options.add_argument('--disable-infobars')
         chrome_options.add_argument('--disable-gpu')
@@ -38,6 +41,9 @@ class Webcrawler:
         chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
+        # Add more performance-enhancing options
+        chrome_options.add_argument('--blink-settings=imagesEnabled=false')  # Disable image loading
+        chrome_options.add_argument('--disable-javascript')  # Disable JavaScript if not needed
         chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         
@@ -54,6 +60,9 @@ class Webcrawler:
         self.base_domain = self.get_base_domain(url)
         self.maxCrawlDepth = maxCrawlDepth
         self.maxTitleLength = maxTitleLength
+        self.max_workers = max_workers  # Number of worker threads for parallel processing
+        self.log_cache = None  # Cache for performance logs
+        self.lock = threading.Lock()  # Thread synchronization
         
         try:
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -81,8 +90,9 @@ class Webcrawler:
             '.png', '.gif', '.bmp', '.svg', '.ico', '.css', '.js'
         ]
 
+    @lru_cache(maxsize=1000)
     def get_base_domain(self, url):
-        """Extract the base domain from a URL"""
+        """Extract the base domain from a URL (cached for performance)"""
         parsed = urlparse(url)
         return parsed.netloc
 
@@ -123,7 +133,22 @@ class Webcrawler:
                 "reason": "invalid_url_type"
             }
             
-        self.driver.get(url)
+        # Clear the performance log cache when navigating to a new page
+        self.log_cache = None
+        
+        # Set a page load timeout to avoid getting stuck
+        self.driver.set_page_load_timeout(30)
+            
+        try:
+            self.driver.get(url)
+        except Exception as e:
+            logging.error(f"Error navigating to {url}: {e}")
+            return {
+                "redirected": False,
+                "continue": False,
+                "reason": "navigation_error"
+            }
+            
         current_url = self.driver.current_url
         
         # Normalize URLs for comparison
@@ -154,8 +179,9 @@ class Webcrawler:
             "continue": True
         }
 
+    @lru_cache(maxsize=1000)
     def normalize_url(self, url):
-        """Normalize URL to reduce false positives in redirect detection and ensure consistent trailing slashes"""
+        """Normalize URL to reduce false positives in redirect detection (cached for performance)"""
         parsed = urlparse(url)
         
         # Convert to lowercase
@@ -178,37 +204,64 @@ class Webcrawler:
         normalized = f"{parsed.scheme}://{netloc}{path}"
         return normalized
 
+    def get_performance_logs(self):
+        """Get performance logs with caching to avoid excessive calls"""
+        if self.log_cache is None:
+            try:
+                self.log_cache = self.driver.get_log('performance')
+            except Exception:
+                self.log_cache = []
+        return self.log_cache
+
     def scanPageForExternalResources(self, current_url):
-        chromelog = self.driver.get_log('performance')
+        chromelog = self.get_performance_logs()
         projectNotifications = []
+        
+        # Use a set to avoid duplicate notifications
+        external_resources = set()
+        
         for request in chromelog:
-            parsedMessage = json.loads(request["message"])["message"]
-            if (parsedMessage["method"] == "Network.requestWillBeSent"):
-                url = parsedMessage["params"]["request"]["url"]
-                if(not self.is_same_domain(current_url, url) and not url.startswith("data:image") 
-                        and not url.startswith("blob:") and not url.startswith("data:text")):
-                    #todo: add check if the url has www or http or https or other variants of the url   
-                    projectNotifications.append(ProjectNotification("external_resource", url))
+            try:
+                parsedMessage = json.loads(request["message"])["message"]
+                if (parsedMessage["method"] == "Network.requestWillBeSent"):
+                    url = parsedMessage["params"]["request"]["url"]
+                    if(not self.is_same_domain(current_url, url) and not url.startswith("data:image") 
+                            and not url.startswith("blob:") and not url.startswith("data:text")
+                            and url not in external_resources):
+                        external_resources.add(url)
+                        projectNotifications.append(ProjectNotification("external_resource", url))
+            except (KeyError, json.JSONDecodeError):
+                # Skip malformed entries
+                continue
         
         # Create and return a crawledPage object
         return crawledPage(current_url, self.driver.page_source, projectNotifications)
     
     def getInternalLinks(self):
-        internal_links = []
-        hrefs = self.driver.find_elements(By.XPATH, "//a[@href]")
+        # Use CSS selector which is faster than XPath
+        hrefs = self.driver.find_elements(By.CSS_SELECTOR, "a[href]")
+        
+        # Use a set to eliminate duplicates right away
+        internal_links = set()
+        
         for href in hrefs:
-            link = href.get_attribute("href")
-            if link:
-                # Remove fragment identifier
-                link = link.split("#")[0]
-                # remove anything trailing ?
-                link = link.split("?")[0]
-                # Check if it's an internal link, valid URL type, and not already visited
-                if (self.is_same_domain(self.url, link) and 
-                    self.is_valid_url(link) and 
-                    self.normalize_url(link) not in self.linksVisited):
-                    internal_links.append(link)
-        return internal_links
+            try:
+                link = href.get_attribute("href")
+                if link:
+                    # Remove fragment identifier
+                    link = link.split("#")[0]
+                    # remove anything trailing ?
+                    link = link.split("?")[0]
+                    # Check if it's an internal link, valid URL type, and not already visited
+                    if (self.is_same_domain(self.url, link) and 
+                        self.is_valid_url(link) and 
+                        self.normalize_url(link) not in self.linksVisited):
+                        internal_links.add(link)
+            except Exception:
+                # Skip links that cause errors
+                continue
+                
+        return list(internal_links)
 
     def close(self):
         if hasattr(self, 'driver'):
@@ -223,23 +276,30 @@ class Webcrawler:
     def scanForMissingAltText(self):
         """Check for images without alt text and create notifications for each instance"""
         projectNotifications = []
-        images = self.driver.find_elements(By.TAG_NAME, "img")
-        missing_alt_count = 0
-        
-        for i, img in enumerate(images):
-            src = img.get_attribute("src") or "unknown source"
-            alt = img.get_attribute("alt")
+        try:
+            images = self.driver.find_elements(By.TAG_NAME, "img")
+            missing_alt_count = 0
             
-            if alt is None or alt.strip() == "":
-                missing_alt_count += 1
-                # Create a descriptive message that helps identify the image
-                message = f"Image missing alt text: {src}"
-                projectNotifications.append(ProjectNotification("accessibility", message))
-        
-        # If there are multiple missing alt texts, add a summary notification
-        if missing_alt_count > 0:
-            summary = f"Found {missing_alt_count} image(s) missing alt text on this page"
-            projectNotifications.append(ProjectNotification("accessibility", summary))
+            for i, img in enumerate(images):
+                try:
+                    src = img.get_attribute("src") or "unknown source"
+                    alt = img.get_attribute("alt")
+                    
+                    if alt is None or alt.strip() == "":
+                        missing_alt_count += 1
+                        # Create a descriptive message that helps identify the image
+                        message = f"Image missing alt text: {src}"
+                        projectNotifications.append(ProjectNotification("accessibility", message))
+                except Exception:
+                    # Skip images that cause errors
+                    continue
+            
+            # If there are multiple missing alt texts, add a summary notification
+            if missing_alt_count > 0:
+                summary = f"Found {missing_alt_count} image(s) missing alt text on this page"
+                projectNotifications.append(ProjectNotification("accessibility", summary))
+        except Exception as e:
+            logging.error(f"Error scanning for missing alt text: {e}")
             
         return projectNotifications
 
@@ -248,8 +308,8 @@ class Webcrawler:
         projectNotifications = []
         
         try:
-            title_element = self.driver.find_element(By.TAG_NAME, "title")
-            title_text = title_element.get_attribute("textContent")
+            # Use document.title via JavaScript which is faster than finding the element
+            title_text = self.driver.execute_script("return document.title;")
             
             if title_text:
                 title_length = len(title_text)
@@ -265,7 +325,7 @@ class Webcrawler:
         except Exception as e:
             # If there's an error finding the title, it might be missing
             projectNotifications.append(ProjectNotification("seo", "Error checking title tag"))
-            print(f"Error checking title: {e}")
+            logging.error(f"Error checking title: {e}")
             
         return projectNotifications
 
@@ -274,7 +334,7 @@ class Webcrawler:
         projectNotifications = []
         
         # Get performance logs to check for HTTP status codes
-        logs = self.driver.get_log('performance')
+        logs = self.get_performance_logs()
         
         error_urls = {}  # To track unique URLs with error status
         
@@ -308,9 +368,11 @@ class Webcrawler:
         """Check for broken links (href attributes that don't work)"""
         projectNotifications = []
         
-        # Find all links on the page
-        links = self.driver.find_elements(By.TAG_NAME, "a")
+        # Find all links on the page using CSS selector (faster than XPath)
+        links = self.driver.find_elements(By.CSS_SELECTOR, "a[href]")
         
+        # Gather all links to check first
+        links_to_check = []
         for link in links:
             try:
                 href = link.get_attribute("href")
@@ -334,27 +396,48 @@ class Webcrawler:
                 if len(link_text) > 30:
                     link_text = link_text[:27] + "..."
                 
-                # Use the performance logs from scanForResponseCodes to identify broken links
-                # We'll check these links without navigating to them
-                try:
-                    import requests
-                    from requests.exceptions import RequestException
-                    
-                    # Make a HEAD request to check if the link is broken
-                    # Set a short timeout to avoid waiting too long
-                    response = requests.head(href, timeout=3, allow_redirects=True)
-                    
-                    if response.status_code >= 400:
-                        message = f"Broken link: {href} (Text: '{link_text}') - Status: {response.status_code}"
-                        projectNotifications.append(ProjectNotification("broken_link", message))
-                except RequestException as e:
-                    message = f"Broken link: {href} (Text: '{link_text}') - Error: Connection failed"
-                    projectNotifications.append(ProjectNotification("broken_link", message))
-            except Exception as e:
+                links_to_check.append((href, link_text))
+            except Exception:
                 # Skip links that cause errors when checking attributes
-                pass
+                continue
+        
+        # Use ThreadPoolExecutor to check links in parallel
+        if links_to_check:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(links_to_check))) as executor:
+                # Submit all link checking tasks
+                future_to_link = {
+                    executor.submit(self.check_link, href, link_text): (href, link_text) 
+                    for href, link_text in links_to_check
+                }
+                
+                # Process results as they complete
+                for future in concurrent.futures.as_completed(future_to_link):
+                    result = future.result()
+                    if result:
+                        projectNotifications.append(result)
         
         return projectNotifications
+    
+    def check_link(self, href, link_text):
+        """Check if a link is broken - called by ThreadPoolExecutor"""
+        try:
+            import requests
+            from requests.exceptions import RequestException
+            
+            # Make a HEAD request to check if the link is broken
+            # Set a short timeout to avoid waiting too long
+            response = requests.head(href, timeout=3, allow_redirects=True)
+            
+            if response.status_code >= 400:
+                message = f"Broken link: {href} (Text: '{link_text}') - Status: {response.status_code}"
+                return ProjectNotification("broken_link", message)
+            return None
+        except RequestException as e:
+            message = f"Broken link: {href} (Text: '{link_text}') - Error: Connection failed"
+            return ProjectNotification("broken_link", message)
+        except Exception:
+            # Skip links that cause other errors
+            return None
 
     def scanForLargeImages(self):
         """Check for images that have large file sizes"""
@@ -362,7 +445,7 @@ class Webcrawler:
         max_size_bytes = 500 * 1024  # 500 KB
         
         # Get all network requests from performance logs
-        logs = self.driver.get_log('performance')
+        logs = self.get_performance_logs()
         
         image_sizes = {}
         
@@ -400,25 +483,29 @@ class Webcrawler:
         projectNotifications = []
         
         # Check for robots meta tag with noindex or nofollow
+        # Using CSS selector for better performance
         meta_robots_tags = self.driver.find_elements(By.CSS_SELECTOR, "meta[name='robots'], meta[name='googlebot']")
         
         has_noindex = False
         has_nofollow = False
         
         for tag in meta_robots_tags:
-            content = tag.get_attribute("content").lower()
-            if "noindex" in content:
-                has_noindex = True
-                message = f"Page contains noindex directive: {content}"
-                projectNotifications.append(ProjectNotification("noindex", message))
-            
-            if "nofollow" in content:
-                has_nofollow = True
-                message = f"Page contains nofollow directive: {content}"
-                projectNotifications.append(ProjectNotification("nofollow", message))
+            try:
+                content = tag.get_attribute("content").lower()
+                if "noindex" in content:
+                    has_noindex = True
+                    message = f"Page contains noindex directive: {content}"
+                    projectNotifications.append(ProjectNotification("noindex", message))
+                
+                if "nofollow" in content:
+                    has_nofollow = True
+                    message = f"Page contains nofollow directive: {content}"
+                    projectNotifications.append(ProjectNotification("nofollow", message))
+            except Exception:
+                continue
         
         # Check HTTP headers for X-Robots-Tag
-        logs = self.driver.get_log('performance')
+        logs = self.get_performance_logs()
         
         for log in logs:
             if 'message' in log:
@@ -431,8 +518,13 @@ class Webcrawler:
                         response = params.get('response', {})
                         headers = response.get('headers', {})
                         
-                        # Check for X-Robots-Tag header
-                        robots_header = headers.get('x-robots-tag', '')
+                        # Check for X-Robots-Tag header (case-insensitive)
+                        robots_header = None
+                        for header_name, header_value in headers.items():
+                            if header_name.lower() == 'x-robots-tag':
+                                robots_header = header_value
+                                break
+                                
                         if robots_header:
                             if 'noindex' in robots_header.lower() and not has_noindex:
                                 message = f"HTTP header contains noindex directive: {robots_header}"
@@ -450,21 +542,32 @@ class Webcrawler:
         """Check for multiple H1 tags or missing H1 tags"""
         projectNotifications = []
         
-        # Find all H1 tags on the page
-        h1_tags = self.driver.find_elements(By.TAG_NAME, "h1")
-        h1_count = len(h1_tags)
-        
-        if h1_count == 0:
-            message = "Page is missing an H1 tag"
-            projectNotifications.append(ProjectNotification("h1_missing", message))
-        elif h1_count > 1:
-            h1_texts = [tag.text for tag in h1_tags]
-            h1_summary = ", ".join([f'"{text}"' for text in h1_texts[:3]])
-            if h1_count > 3:
-                h1_summary += f", and {h1_count - 3} more"
+        try:
+            # Find all H1 tags on the page
+            h1_count = int(self.driver.execute_script("return document.getElementsByTagName('h1').length;"))
             
-            message = f"Page has {h1_count} H1 tags (recommended: 1): {h1_summary}"
-            projectNotifications.append(ProjectNotification("multiple_h1", message))
+            if h1_count == 0:
+                message = "Page is missing an H1 tag"
+                projectNotifications.append(ProjectNotification("h1_missing", message))
+            elif h1_count > 1:
+                # Only get the text if we need it for the notification
+                h1_texts = self.driver.execute_script("""
+                    var h1s = document.getElementsByTagName('h1');
+                    var texts = [];
+                    for (var i = 0; i < Math.min(h1s.length, 3); i++) {
+                        texts.push(h1s[i].innerText || h1s[i].textContent || '');
+                    }
+                    return texts;
+                """)
+                
+                h1_summary = ", ".join([f'"{text}"' for text in h1_texts[:3]])
+                if h1_count > 3:
+                    h1_summary += f", and {h1_count - 3} more"
+                
+                message = f"Page has {h1_count} H1 tags (recommended: 1): {h1_summary}"
+                projectNotifications.append(ProjectNotification("multiple_h1", message))
+        except Exception as e:
+            logging.error(f"Error checking H1 tags: {e}")
         
         return projectNotifications
 
@@ -480,12 +583,48 @@ class Webcrawler:
         
         return projectNotifications
 
+    def scan_page_parallel(self, current_url):
+        """Run all page scans in parallel to speed up processing"""
+        notifications = []
+        
+        # Define the scan functions to run in parallel
+        scan_functions = [
+            self.scanForMissingAltText,
+            self.scanForTitleIssues,
+            lambda: self.scanForResponseCodes(current_url),
+            self.scanForBrokenLinks,
+            self.scanForLargeImages,
+            self.scanForNoIndexNoFollow,
+            self.scanForH1Issues,
+            self.scanForHttps
+        ]
+        
+        # Run scans in parallel with ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(scan_functions), self.max_workers)) as executor:
+            # Submit all scanning tasks
+            future_to_scan = {executor.submit(scan_func): scan_func for scan_func in scan_functions}
+            
+            # Process results as they complete
+            for future in concurrent.futures.as_completed(future_to_scan):
+                try:
+                    result = future.result()
+                    if result:
+                        notifications.extend(result)
+                except Exception as e:
+                    logging.error(f"Error in scan function: {e}")
+        
+        return notifications
+
     def crawl(self):
+        """Crawl the website and collect data"""
         # Start with the initial URL at depth 0
         current_depth = 0
         
         # Use a deque to process URLs level by level
         to_visit = deque([(self.url, current_depth)])
+        
+        # Set to track URLs in the queue to avoid adding duplicates
+        urls_in_queue = {self.normalize_url(self.url)}
         
         # Process URLs by depth level
         while to_visit and current_depth <= self.maxCrawlDepth:
@@ -506,14 +645,12 @@ class Webcrawler:
                 try:
                     print(f"Crawling {url} at depth {current_depth}/{self.maxCrawlDepth}")
                     
-                    # --- Attempt to clear performance log buffer before navigation ---
+                    # Clear performance log buffer before navigation
+                    self.log_cache = None
                     try:
-                        # Calling get_log might clear the buffer for the next call
                         self.driver.get_log('performance') 
                     except Exception: 
-                        # Ignore errors (e.g., log buffer not supported/empty)
                         pass 
-                    # ------------------------------------------------------------------
 
                     # Navigate to URL and handle redirects
                     redirect_info = self.navigate_to_url(url)
@@ -536,37 +673,9 @@ class Webcrawler:
                     # Scan for external resources
                     page = self.scanPageForExternalResources(current_url)
                     
-                    # Scan for missing alt text on images and add accessibility notifications
-                    missing_alt_notifications = self.scanForMissingAltText()
-                    page.projectNotifications.extend(missing_alt_notifications)
-                    
-                    # Scan for title issues and add SEO notifications
-                    title_notifications = self.scanForTitleIssues()
-                    page.projectNotifications.extend(title_notifications)
-                    
-                    # Scan for response codes
-                    response_code_notifications = self.scanForResponseCodes(current_url)
-                    page.projectNotifications.extend(response_code_notifications)
-                    
-                    # Scan for broken links
-                    broken_link_notifications = self.scanForBrokenLinks()
-                    page.projectNotifications.extend(broken_link_notifications)
-                    
-                    # Scan for large images
-                    large_image_notifications = self.scanForLargeImages()
-                    page.projectNotifications.extend(large_image_notifications)
-                    
-                    # Scan for noindex/nofollow
-                    indexing_notifications = self.scanForNoIndexNoFollow()
-                    page.projectNotifications.extend(indexing_notifications)
-                    
-                    # Scan for H1 issues
-                    h1_notifications = self.scanForH1Issues()
-                    page.projectNotifications.extend(h1_notifications)
-                    
-                    # Scan for HTTPS
-                    https_notifications = self.scanForHttps()
-                    page.projectNotifications.extend(https_notifications)
+                    # Run all the other scans in parallel
+                    parallel_scan_results = self.scan_page_parallel(current_url)
+                    page.projectNotifications.extend(parallel_scan_results)
                     
                     # Add any redirect notifications
                     page.projectNotifications.extend(projectNotifications)
@@ -584,11 +693,13 @@ class Webcrawler:
                         internal_links = self.getInternalLinks()
                         for link in internal_links:
                             normalized_link = self.normalize_url(link)
-                            if normalized_link not in self.linksVisited and not any(normalized_link == self.normalize_url(u) for u, _ in to_visit):
+                            # Check if the link is already in our visited set or in the queue
+                            if normalized_link not in self.linksVisited and normalized_link not in urls_in_queue:
                                 to_visit.append((link, current_depth + 1))
+                                urls_in_queue.add(normalized_link)
                 
                 except Exception as e:
-                    print(f"Error crawling {url}: {e}")
+                    logging.error(f"Error crawling {url}: {e}")
             
             # Move to the next depth level
             if to_visit:
