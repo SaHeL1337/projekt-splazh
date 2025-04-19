@@ -319,6 +319,16 @@ class Webcrawler:
                 if not href or href.startswith("javascript:") or href == "#":
                     continue
                 
+                # Skip mailto, tel, ftp, and other non-http protocol links
+                if (href.startswith("mailto:") or 
+                    href.startswith("tel:") or 
+                    href.startswith("ftp:") or 
+                    href.startswith("skype:") or
+                    href.startswith("sms:") or
+                    href.startswith("whatsapp:") or
+                    ":" in href and not href.startswith("http")):
+                    continue
+                
                 # Get link text for better identification
                 link_text = link.text.strip() or "(No text)"
                 if len(link_text) > 30:
