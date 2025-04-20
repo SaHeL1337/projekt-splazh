@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Row, Col, Statistic, Descriptions, Divider, Button, message, Space, Typography, Tag, Spin, Alert, Input, Empty, notification, Progress, Badge, List } from 'antd';
+import { Card, Row, Col, Statistic, Descriptions, Divider, Button, message, Space, Typography, Tag, Spin, Alert, Input, Empty, notification, Progress, Badge, List, Tooltip, Table } from 'antd';
 import { FetchWithAuth } from '../services/api';
 import { useAuth } from '@clerk/clerk-react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -14,16 +14,27 @@ import {
     CalendarOutlined,
     FileTextOutlined,
     SearchOutlined,
-    PieChartOutlined,
     ReloadOutlined,
     ArrowLeftOutlined,
     HeartOutlined,
     CheckCircleFilled,
     ExclamationCircleFilled,
     InfoCircleFilled,
-    ExclamationCircleOutlined
+    ExclamationCircleOutlined,
+    ThunderboltOutlined,
+    RocketOutlined
 } from '@ant-design/icons';
-import { Pie } from '@ant-design/plots';
+import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+// Add custom styles for the circular progress bar
+const progressBarStyle = `
+  .center-progress-text .CircularProgressbar-text {
+    dominant-baseline: middle;
+    text-anchor: middle;
+    transform: translateY(2px);
+  }
+`;
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -68,6 +79,25 @@ interface HealthMetrics {
   criticalIssues: number;
   warningIssues: number;
   infoIssues: number;
+  color: string;
+}
+
+// New interfaces for load time metrics
+interface PageLoadTime {
+  url: string;
+  ttfb: number; // milliseconds
+  renderTime: number; // milliseconds
+  timestamp: string;
+}
+
+interface LoadTimeMetricsProps {
+  loadTimes: PageLoadTime[];
+  loading: boolean;
+}
+
+interface LoadTimePerformance {
+  category: string;
+  count: number;
   color: string;
 }
 
@@ -130,10 +160,11 @@ interface NotificationCount {
   color: string;
 }
 
-const calculateHealthScore = (notifications: Notification[]): HealthMetrics => {
-  if (!notifications || notifications.length === 0) {
+const calculateHealthScore = (notifications: Notification[], pagesCrawled: number): HealthMetrics => {
+  // If no pages were crawled or there are no notifications, return a "no data" state
+  if (pagesCrawled === 0 || !notifications || notifications.length === 0) {
     return {
-      score: 100,
+      score: 0,
       status: 'excellent',
       criticalIssues: 0,
       warningIssues: 0,
@@ -249,62 +280,79 @@ const getCategorySeverity = (category: string): 'critical' | 'warning' | 'info' 
   return severityMap[category.toLowerCase()] || 'info';
 };
 
-const HealthDisplay: React.FC<{ health: HealthMetrics }> = ({ health }) => {
-  const getStatusText = (status: string): string => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
-
-  const getStatusDescription = (health: HealthMetrics): string => {
-    if (health.criticalIssues > 0) {
-      return `${health.criticalIssues} critical issues need attention`;
-    } else if (health.warningIssues > 0) {
-      return `${health.warningIssues} warnings to review`;
-    } else if (health.infoIssues > 0) {
-      return `${health.infoIssues} informational items`;
-    } else {
-      return 'No issues detected';
-    }
-  };
-
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <Progress
-        type="dashboard"
-        percent={health.score}
-        format={() => (
-          <span style={{ color: health.color, fontSize: '28px', fontWeight: 'bold' }}>
-            {Math.round(health.score)}
-          </span>
-        )}
-        strokeColor={health.color}
-        strokeWidth={8}
-        width={160}
-      />
-      <div style={{ marginTop: '16px' }}>
-        <div style={{ fontSize: '18px', fontWeight: 600, color: health.color, marginBottom: '4px' }}>
-          {getStatusText(health.status)}
+const HealthDisplay = ({ health, pagesCrawled }: { health: HealthMetrics, pagesCrawled: number }) => {
+  const { score, status, criticalIssues, warningIssues, infoIssues, color } = health;
+  
+  // When no pages have been crawled or score is 0, display "No Data"
+  if (pagesCrawled === 0 || score === 0) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col items-center justify-center w-full">
+            <div className="text-3xl font-bold text-gray-400">No Data</div>
+            <p className="text-gray-500 mt-2">Waiting for crawl to complete</p>
+          </div>
         </div>
-        <div style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.45)' }}>
-          {getStatusDescription(health)}
+        
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-gray-50 p-4 rounded-lg text-center">
+            <div className="text-2xl font-bold text-gray-400">0</div>
+            <div className="text-gray-500">Critical</div>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg text-center">
+            <div className="text-2xl font-bold text-gray-400">0</div>
+            <div className="text-gray-500">Warning</div>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg text-center">
+            <div className="text-2xl font-bold text-gray-400">0</div>
+            <div className="text-gray-500">Info</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Round the score to remove decimal places for cleaner display
+  const roundedScore = Math.round(score);
+  
+  return (
+    <div>
+      <style>{progressBarStyle}</style>
+      <div className="flex items-center mb-6">
+        <div style={{ width: '140px', height: '140px' }}>
+          <CircularProgressbar
+            value={score}
+            text={`${roundedScore}`}
+            styles={buildStyles({
+              textSize: '28px',
+              pathColor: color,
+              textColor: color,
+              trailColor: '#f5f5f5',
+            })}
+            className="center-progress-text"
+          />
+        </div>
+        <div className="ml-8">
+          <h3 className="text-3xl font-bold capitalize" style={{ color }}>
+            {status}
+          </h3>
+          <p className="text-gray-500">Overall health score</p>
         </div>
       </div>
       
-      <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '24px' }}>
-        <Statistic 
-          title={<div style={{ fontSize: '13px' }}><ExclamationCircleFilled style={{ color: '#f5222d', marginRight: '4px' }} />Critical</div>}
-          value={health.criticalIssues} 
-          valueStyle={{ color: health.criticalIssues > 0 ? '#f5222d' : '#8c8c8c', fontSize: '16px' }}
-        />
-        <Statistic 
-          title={<div style={{ fontSize: '13px' }}><WarningOutlined style={{ color: '#faad14', marginRight: '4px' }} />Warning</div>}
-          value={health.warningIssues} 
-          valueStyle={{ color: health.warningIssues > 0 ? '#faad14' : '#8c8c8c', fontSize: '16px' }}
-        />
-        <Statistic 
-          title={<div style={{ fontSize: '13px' }}><InfoCircleFilled style={{ color: '#1890ff', marginRight: '4px' }} />Info</div>}
-          value={health.infoIssues} 
-          valueStyle={{ color: '#8c8c8c', fontSize: '16px' }}
-        />
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-red-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-red-500">{criticalIssues}</div>
+          <div className="text-gray-500">Critical</div>
+        </div>
+        <div className="bg-yellow-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-yellow-500">{warningIssues}</div>
+          <div className="text-gray-500">Warning</div>
+        </div>
+        <div className="bg-blue-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-blue-500">{infoIssues}</div>
+          <div className="text-gray-500">Info</div>
+        </div>
       </div>
     </div>
   );
@@ -333,6 +381,10 @@ const Dashboard: React.FC = () => {
     color: '#52c41a'
   });
   const navigate = useNavigate();
+
+  // New state for load time metrics
+  const [loadTimes, setLoadTimes] = useState<PageLoadTime[]>([]);
+  const [loadingLoadTimes, setLoadingLoadTimes] = useState<boolean>(true);
 
   // Separate fetch function for status polling
   const pollCrawlStatus = async () => {
@@ -420,12 +472,12 @@ const Dashboard: React.FC = () => {
       setNotificationCategories(categoryData);
       
       // Calculate health metrics
-      const health = calculateHealthScore(notifications);
+      const health = calculateHealthScore(notifications, crawlStatus.pagesCrawled ?? 0);
       setHealthMetrics(health);
     } else {
       setNotificationCategories([]);
       setHealthMetrics({
-        score: 100,
+        score: 0,
         status: 'excellent',
         criticalIssues: 0,
         warningIssues: 0,
@@ -433,7 +485,7 @@ const Dashboard: React.FC = () => {
         color: '#52c41a'
       });
     }
-  }, [notifications]);
+  }, [notifications, crawlStatus.pagesCrawled]);
 
   const fetchProjectDetails = async (projectId: string) => {
     try {
@@ -491,10 +543,21 @@ const Dashboard: React.FC = () => {
         body: JSON.stringify({ projectId: Number(id) }),
       });
       setCrawlStatus(prev => ({...prev, status: 'queued'}));
-      message.success('Crawl queued!');
       
-      // Refresh notifications when a crawl is queued
-      fetchNotifications(id);
+      // Clear notifications, categories, and load times when starting a new crawl
+      setNotifications([]);
+      setNotificationCategories([]);
+      setLoadTimes([]);
+      setHealthMetrics({
+        score: 0,
+        status: 'excellent',
+        criticalIssues: 0,
+        warningIssues: 0,
+        infoIssues: 0,
+        color: '#52c41a'
+      });
+      
+      message.success('Crawl queued!');
       
       setTimeout(pollCrawlStatus, 1500);
     } catch (error) {
@@ -503,29 +566,6 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const token = await getToken();
-      const data = await FetchWithAuth(`/api/project/${id}/dashboard`, token, {
-        method: 'GET',
-      });
-      setDashboardData(data);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      notification.error({
-        message: 'Error',
-        description: 'Failed to load dashboard data. Please try again later.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const viewResults = () => {
-    navigate(`/dashboard/project/${id}/results`);
   };
 
   // Calculate notification counts by type
@@ -567,21 +607,61 @@ const Dashboard: React.FC = () => {
   
   // Calculate total notifications
   const totalNotifications = notificationsByType.reduce((sum, item) => sum + item.count, 0);
-  
-  // Custom tooltip formatter for the pie chart
-  const tooltipFormatter = (datum: any) => {
-    if (!datum || datum.value === undefined) {
-      return "";
-    }
-    const percentage = ((datum.value / totalNotifications) * 100).toFixed(1);
-    return `${datum.label || 'Unknown'}: ${datum.value} (${percentage}%)`;
-  };
 
   // Helper function to check if a crawl is in progress
   const isCrawlInProgress = () => {
     const status = crawlStatus.status?.toLowerCase();
     return status === 'queued' || status === 'crawling' || status === 'in progress';
   };
+
+  // Add to useEffect to load data
+  useEffect(() => {
+    // Fetch real load time data from API
+    const fetchLoadTimes = async () => {
+      setLoadingLoadTimes(true);
+      try {
+        if (!id) {
+          setLoadingLoadTimes(false);
+          return;
+        }
+        
+        const token = await getToken();
+        const data = await FetchWithAuth(`/api/crawl/results?projectId=${id}`, token, {
+          method: "GET"
+        });
+        
+        if (!data || !Array.isArray(data)) {
+          console.error("Invalid load time data format:", data);
+          setLoadTimes([]);
+          setLoadingLoadTimes(false);
+          return;
+        }
+        
+        // The API returns data in the format we need:
+        // { url: string, ttfb: number, renderTime: number }
+        // We'll add a timestamp property with the current date since it's not provided by the API
+        const now = new Date().toISOString();
+        const formattedData = data.map((item: any) => ({
+          url: item.url || "",
+          ttfb: typeof item.ttfb === 'number' ? item.ttfb : 0,
+          renderTime: typeof item.renderTime === 'number' ? item.renderTime : 0,
+          timestamp: now // Use current time since the API doesn't provide timestamps
+        }));
+        
+        console.log("Processed load time data:", formattedData); // Add debug log
+        setLoadTimes(formattedData);
+        setLoadingLoadTimes(false);
+      } catch (error) {
+        console.error("Failed to fetch load times:", error);
+        setLoadTimes([]);
+        setLoadingLoadTimes(false);
+      }
+    };
+    
+    if (id) {
+      fetchLoadTimes();
+    }
+  }, [id, getToken]);
 
   if (!id) {
     return (
@@ -768,9 +848,9 @@ const Dashboard: React.FC = () => {
                       warningIssues: 0,
                       infoIssues: 0,
                       color: '#52c41a' // green
-                    }} />
+                    }} pagesCrawled={crawlStatus.pagesCrawled ?? 0} />
                   ) : (
-                    <HealthDisplay health={healthMetrics} />
+                    <HealthDisplay health={healthMetrics} pagesCrawled={crawlStatus.pagesCrawled ?? 0} />
                   )}
                 </Card>
               </Col>
@@ -800,6 +880,26 @@ const Dashboard: React.FC = () => {
           />
         </Card>
       </div>
+
+      {/* Load Times Section */}
+      <Row gutter={[24, 24]} style={{ marginTop: '24px' }}>
+        <Col xs={24}>
+          <Card 
+            className="shadow-md rounded-lg"
+            title={
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <ThunderboltOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                <span style={{ fontWeight: 600, fontSize: '16px' }}>Page Load Performance</span>
+              </div>
+            }
+          >
+            <LoadTimeMetrics 
+              loadTimes={loadTimes} 
+              loading={loadingLoadTimes} 
+            />
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 };
@@ -834,23 +934,6 @@ const NotificationsByCategory: React.FC<{ projectId: number; onRefresh: () => vo
     }
   };
 
-  // Refresh notifications
-  const handleRefresh = async () => {
-    if (refreshing) return;
-    
-    setRefreshing(true);
-    message.info('Refreshing notifications...');
-    
-    try {
-      await fetchNotifications();
-      message.success('Notifications refreshed');
-      onRefresh && onRefresh(); // Call parent refresh if provided
-    } catch (err) {
-      message.error('Failed to refresh notifications');
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   // Fetch data when component mounts or projectId changes
   useEffect(() => {
@@ -1161,11 +1244,539 @@ const getSeverityColor = (severity: string): string => {
 const getDisplayUrl = (url: string): string => {
   try {
     const urlObj = new URL(url);
-    const path = urlObj.pathname === '/' ? '' : urlObj.pathname;
-    return `${urlObj.hostname}${path}${urlObj.search}`;
-  } catch (e) {
-    return url;
+    // Just display the hostname and pathname
+    return `${urlObj.hostname}${urlObj.pathname === '/' ? '' : urlObj.pathname}`;
+  } catch (error) {
+    // If URL parsing fails, use the original string or try to make it presentable
+    const hostnameMatch = url.match(/^(?:https?:\/\/)?([^\/]+)/i);
+    return hostnameMatch ? hostnameMatch[1] : url;
   }
+};
+
+// Utility function to classify page performance
+const classifyPagePerformance = (ttfb: number, renderTime: number): 'excellent' | 'good' | 'fair' | 'poor' | 'critical' => {
+  // Time to First Byte thresholds (in ms)
+  const ttfbThresholds = {
+    excellent: 200,  // < 200ms
+    good: 500,       // < 500ms
+    fair: 1000,      // < 1000ms
+    poor: 2000       // < 2000ms
+    // Anything above 2000ms is considered critical
+  };
+  
+  // Total render time thresholds (in ms)
+  const renderThresholds = {
+    excellent: 800,  // < 800ms
+    good: 1800,      // < 1800ms
+    fair: 3000,      // < 3000ms
+    poor: 5000       // < 5000ms
+    // Anything above 5000ms is considered critical
+  };
+  
+  // Determine TTFB category
+  let ttfbCategory: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+  if (ttfb < ttfbThresholds.excellent) ttfbCategory = 'excellent';
+  else if (ttfb < ttfbThresholds.good) ttfbCategory = 'good';
+  else if (ttfb < ttfbThresholds.fair) ttfbCategory = 'fair';
+  else if (ttfb < ttfbThresholds.poor) ttfbCategory = 'poor';
+  else ttfbCategory = 'critical';
+  
+  // Determine render time category
+  let renderCategory: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+  if (renderTime < renderThresholds.excellent) renderCategory = 'excellent';
+  else if (renderTime < renderThresholds.good) renderCategory = 'good';
+  else if (renderTime < renderThresholds.fair) renderCategory = 'fair';
+  else if (renderTime < renderThresholds.poor) renderCategory = 'poor';
+  else renderCategory = 'critical';
+  
+  // Use the worse of the two categories
+  const categories = ['excellent', 'good', 'fair', 'poor', 'critical'];
+  const ttfbIndex = categories.indexOf(ttfbCategory);
+  const renderIndex = categories.indexOf(renderCategory);
+  const worstIndex = Math.max(ttfbIndex, renderIndex);
+  
+  return categories[worstIndex] as 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+}
+
+// Get color based on performance category
+const getPerformanceColor = (category: string): string => {
+  switch (category) {
+    case 'excellent': return '#52c41a'; // green
+    case 'good': return '#1890ff';      // blue
+    case 'fair': return '#faad14';      // gold
+    case 'poor': return '#fa8c16';      // orange
+    case 'critical': return '#f5222d';  // red
+    default: return '#8c8c8c';          // grey
+  }
+};
+
+// Generate tag for performance categories
+const getPerformanceTag = (category: 'excellent' | 'good' | 'fair' | 'poor' | 'critical'): React.ReactNode => {
+  const iconMap = {
+    'excellent': <CheckCircleOutlined />,
+    'good': <CheckCircleOutlined />,
+    'fair': <ClockCircleOutlined />,
+    'poor': <WarningOutlined />,
+    'critical': <CloseCircleOutlined />
+  };
+  
+  const colorMap = {
+    'excellent': 'success',
+    'good': 'processing',
+    'fair': 'warning',
+    'poor': 'warning',
+    'critical': 'error'
+  };
+  
+  return (
+    <Tag icon={iconMap[category]} color={colorMap[category]} style={{ textTransform: 'capitalize' }}>
+      {category}
+    </Tag>
+  );
+};
+
+// Function to get readable time format
+const formatTime = (ms: number): string => {
+  if (ms < 1000) return `${ms.toFixed(0)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+};
+
+// Load Times visualization component
+const LoadTimeMetrics: React.FC<LoadTimeMetricsProps> = ({ loadTimes, loading }) => {
+  // Process and sort data for visualization
+  const processedData = useMemo(() => {
+    if (!loadTimes || loadTimes.length === 0) return [];
+    
+    // Add performance categorization
+    const categorizedData = loadTimes.map(item => {
+      // Ensure numeric values for ttfb and renderTime
+      const ttfb = typeof item.ttfb === 'number' ? item.ttfb : 0;
+      const renderTime = typeof item.renderTime === 'number' ? item.renderTime : 0;
+      const performanceCategory = classifyPagePerformance(ttfb, renderTime);
+      
+      return {
+        ...item,
+        url: item.url || "",
+        ttfb,
+        renderTime,
+        performanceCategory
+      };
+    });
+    
+    // Sort by render time (slowest first)
+    return categorizedData.sort((a, b) => b.renderTime - a.renderTime);
+  }, [loadTimes]);
+  
+  // Table columns for detailed view
+  const tableColumns = [
+    {
+      title: 'URL',
+      dataIndex: 'url',
+      key: 'url',
+      ellipsis: true,
+      render: (url: string) => {
+        // Safely handle URL display
+        try {
+          // Try to parse the URL
+          const urlObj = new URL(url);
+          const path = urlObj.pathname === '/' ? 'Home' : urlObj.pathname;
+          return (
+            <Tooltip title={url}>
+              <a href={url} target="_blank" rel="noopener noreferrer">
+                {path}
+              </a>
+            </Tooltip>
+          );
+        } catch (error) {
+          // Fallback for URLs that can't be parsed
+          return (
+            <Tooltip title={url}>
+              <a href={url.startsWith('http') ? url : `https://${url}`} target="_blank" rel="noopener noreferrer">
+                {url}
+              </a>
+            </Tooltip>
+          );
+        }
+      },
+    },
+    {
+      title: 'TTFB',
+      dataIndex: 'ttfb',
+      key: 'ttfb',
+      width: 100,
+      sorter: (a: any, b: any) => a.ttfb - b.ttfb,
+      render: (ttfb: number) => formatTime(ttfb),
+    },
+    {
+      title: 'Render Time',
+      dataIndex: 'renderTime',
+      key: 'renderTime',
+      width: 120,
+      sorter: (a: any, b: any) => a.renderTime - b.renderTime,
+      defaultSortOrder: 'descend' as 'descend',
+      render: (renderTime: number) => formatTime(renderTime),
+    },
+    {
+      title: 'Performance',
+      dataIndex: 'performanceCategory',
+      key: 'performanceCategory',
+      width: 120,
+      filters: [
+        { text: 'Critical', value: 'critical' },
+        { text: 'Poor', value: 'poor' },
+        { text: 'Fair', value: 'fair' },
+        { text: 'Good', value: 'good' },
+        { text: 'Excellent', value: 'excellent' },
+      ],
+      onFilter: (value: any, record: any) => record.performanceCategory === value,
+      render: (category: 'excellent' | 'good' | 'fair' | 'poor' | 'critical') => getPerformanceTag(category),
+    },
+  ];
+  
+  if (loading) {
+    return (
+      <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+  
+  if (!loadTimes || loadTimes.length === 0) {
+    return (
+      <div>
+        <Row gutter={[24, 24]}>
+          <Col xs={24} md={8}>
+            <Card className="inner-card" bordered={false} style={{ 
+              background: '#f9f9f9', 
+              borderRadius: '8px',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <Progress
+                  type="dashboard"
+                  percent={100}
+                  format={() => (
+                    <span style={{ color: '#8c8c8c', fontSize: '18px', fontWeight: 'bold' }}>
+                      No Data
+                    </span>
+                  )}
+                  strokeColor="#d9d9d9"
+                  strokeWidth={8}
+                  width={140}
+                />
+                <div style={{ 
+                  marginTop: '16px', 
+                  fontSize: '18px', 
+                  fontWeight: 600, 
+                  color: '#8c8c8c' 
+                }}>
+                  No Performance Data
+                </div>
+                <div style={{ 
+                  marginTop: '8px', 
+                  fontSize: '14px', 
+                  color: 'rgba(0,0,0,0.65)',
+                  padding: '0 16px'
+                }}>
+                  Start a crawl to collect performance data
+                </div>
+              </div>
+            </Card>
+          </Col>
+          
+          <Col xs={24} md={16}>
+            <Card className="inner-card" bordered={false} style={{ 
+              background: '#f9f9f9', 
+              borderRadius: '8px',
+              height: '100%'
+            }}>
+              <div style={{ 
+                fontSize: '16px', 
+                fontWeight: 600, 
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <InfoCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+                Performance Insight
+              </div>
+              
+              <div style={{ fontSize: '14px', marginBottom: '24px' }}>
+                No performance data is available. Start a crawl to analyze your website's performance.
+              </div>
+              
+              <Empty 
+                description="No page performance data available yet" 
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            </Card>
+          </Col>
+        </Row>
+        
+        <Card
+          bordered={false}
+          className="shadow-sm"
+          title={
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <ThunderboltOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+              <span>Page Load Time Details</span>
+            </div>
+          }
+          style={{ marginTop: '24px' }}
+        >
+          <Empty 
+            description="No load time data available" 
+            image={Empty.PRESENTED_IMAGE_SIMPLE} 
+          />
+        </Card>
+      </div>
+    );
+  }
+  
+  // Count pages in each performance category
+  const performanceCounts = {
+    critical: processedData.filter(d => d.performanceCategory === 'critical').length,
+    poor: processedData.filter(d => d.performanceCategory === 'poor').length,
+    fair: processedData.filter(d => d.performanceCategory === 'fair').length,
+    good: processedData.filter(d => d.performanceCategory === 'good').length,
+    excellent: processedData.filter(d => d.performanceCategory === 'excellent').length,
+  };
+  
+  // Calculate average metrics safely
+  const averageTTFB = loadTimes.length > 0 
+    ? loadTimes.reduce((sum, item) => sum + (typeof item.ttfb === 'number' ? item.ttfb : 0), 0) / loadTimes.length 
+    : 0;
+    
+  const averageRenderTime = loadTimes.length > 0 
+    ? loadTimes.reduce((sum, item) => sum + (typeof item.renderTime === 'number' ? item.renderTime : 0), 0) / loadTimes.length 
+    : 0;
+  
+  // Calculate performance score (0-100)
+  const calculatePerformanceScore = () => {
+    if (loadTimes.length === 0) return 0; // Changed from 100 to 0 to indicate no data
+    
+    // Weight factors - higher weight for critical issues
+    const weights = {
+      excellent: 100,
+      good: 80,
+      fair: 60,
+      poor: 30,
+      critical: 0
+    };
+    
+    // Calculate weighted score
+    let totalWeight = 0;
+    const categories = ['excellent', 'good', 'fair', 'poor', 'critical'];
+    
+    categories.forEach(category => {
+      const count = performanceCounts[category as keyof typeof performanceCounts];
+      totalWeight += count * weights[category as keyof typeof weights];
+    });
+    
+    const score = Math.round(totalWeight / loadTimes.length);
+    return score;
+  };
+  
+  // Calculate actual score
+  const performanceScore = calculatePerformanceScore();
+  
+  // Get slowest page data for highlighting
+  const slowestPage = processedData.length > 0 ? processedData[0] : null;
+  
+  // Get performance status text and color
+  const getPerformanceStatus = (score: number): {text: string, color: string} => {
+    if (score >= 90) return { text: 'Excellent', color: '#52c41a' };
+    if (score >= 75) return { text: 'Good', color: '#1890ff' };
+    if (score >= 60) return { text: 'Fair', color: '#faad14' };
+    if (score >= 40) return { text: 'Poor', color: '#fa8c16' };
+    return { text: 'Critical', color: '#f5222d' };
+  };
+  
+  const performanceStatus = getPerformanceStatus(performanceScore);
+  
+  // Get performance issues summary
+  const getPerformanceInsight = () => {
+    const issues = [];
+    
+    if (performanceCounts.critical > 0) {
+      issues.push(`${performanceCounts.critical} page${performanceCounts.critical > 1 ? 's' : ''} with critical performance issues`);
+    }
+    
+    if (performanceCounts.poor > 0) {
+      issues.push(`${performanceCounts.poor} page${performanceCounts.poor > 1 ? 's' : ''} with poor performance`);
+    }
+    
+    if (averageTTFB > 1000) {
+      issues.push('High average Time to First Byte (TTFB)');
+    }
+    
+    if (averageRenderTime > 3000) {
+      issues.push('High average render time');
+    }
+    
+    if (issues.length === 0) {
+      if (performanceScore >= 90) {
+        return 'Your website is performing excellently! No major performance issues detected.';
+      } else {
+        return 'Your website is performing well, but there\'s room for improvement.';
+      }
+    }
+    
+    return issues.join('. ') + '.';
+  };
+  
+  return (
+    <div>
+      <Row gutter={[24, 24]}>
+        <Col xs={24} md={8}>
+          <Card className="inner-card" bordered={false} style={{ 
+            background: '#f9f9f9', 
+            borderRadius: '8px',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <Progress
+                type="dashboard"
+                percent={performanceScore}
+                format={percent => (
+                  <span style={{ color: performanceStatus.color, fontSize: '28px', fontWeight: 'bold' }}>
+                    {percent}
+                  </span>
+                )}
+                strokeColor={performanceStatus.color}
+                strokeWidth={8}
+                width={140}
+              />
+              <div style={{ 
+                marginTop: '16px', 
+                fontSize: '18px', 
+                fontWeight: 600, 
+                color: performanceStatus.color 
+              }}>
+                {performanceStatus.text} Performance
+              </div>
+              <div style={{ 
+                marginTop: '8px', 
+                fontSize: '14px', 
+                color: 'rgba(0,0,0,0.65)',
+                padding: '0 16px'
+              }}>
+                Based on {loadTimes.length} analyzed pages
+              </div>
+            </div>
+          </Card>
+        </Col>
+        
+        <Col xs={24} md={16}>
+          <Card className="inner-card" bordered={false} style={{ 
+            background: '#f9f9f9', 
+            borderRadius: '8px',
+            height: '100%'
+          }}>
+            <div style={{ 
+              fontSize: '16px', 
+              fontWeight: 600, 
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <InfoCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+              Performance Insight
+            </div>
+            
+            <div style={{ fontSize: '14px', marginBottom: '24px' }}>
+              {getPerformanceInsight()}
+            </div>
+            
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <Tag color="#52c41a">{performanceCounts.excellent} Excellent</Tag>
+              <Tag color="#1890ff">{performanceCounts.good} Good</Tag>
+              <Tag color="#faad14">{performanceCounts.fair} Fair</Tag>
+              <Tag color="#fa8c16">{performanceCounts.poor} Poor</Tag>
+              <Tag color="#f5222d">{performanceCounts.critical} Critical</Tag>
+            </div>
+            
+            <Divider style={{ margin: '16px 0' }} />
+            
+            <Row>
+              <Col span={12}>
+                <Statistic 
+                  title={<div style={{ fontSize: '14px' }}><ThunderboltOutlined style={{ marginRight: '8px', color: '#1890ff' }} />Average TTFB</div>}
+                  value={formatTime(averageTTFB)}
+                  valueStyle={{ 
+                    fontSize: '16px', 
+                    color: averageTTFB > 1000 ? '#f5222d' : (averageTTFB > 500 ? '#fa8c16' : '#52c41a'), 
+                    fontWeight: 500 
+                  }}
+                />
+              </Col>
+              <Col span={12}>
+                <Statistic 
+                  title={<div style={{ fontSize: '14px' }}><RocketOutlined style={{ marginRight: '8px', color: '#1890ff' }} />Average Render Time</div>}
+                  value={formatTime(averageRenderTime)}
+                  valueStyle={{ 
+                    fontSize: '16px', 
+                    color: averageRenderTime > 3000 ? '#f5222d' : (averageRenderTime > 1800 ? '#fa8c16' : '#52c41a'), 
+                    fontWeight: 500 
+                  }}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+      </Row>
+      
+      {/* Show slowest page alert if there are performance issues */}
+      {(slowestPage && (slowestPage.performanceCategory === 'critical' || slowestPage.performanceCategory === 'poor')) && (
+        <Alert
+          message="Performance Issue Detected"
+          description={
+            <div>
+              Your slowest page is <strong>{
+                (() => {
+                  try {
+                    const url = new URL(slowestPage.url);
+                    return url.pathname === '/' ? 'Home' : url.pathname;
+                  } catch {
+                    return slowestPage.url;
+                  }
+                })()
+              }</strong> with a render time of <strong>{formatTime(slowestPage.renderTime)}</strong> and TTFB of <strong>{formatTime(slowestPage.ttfb)}</strong>.
+            </div>
+          }
+          type="warning"
+          showIcon
+          style={{ marginTop: '24px', marginBottom: '0px' }}
+        />
+      )}
+      
+      <Card
+        bordered={false}
+        className="shadow-sm"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <ThunderboltOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+            <span>Page Load Time Details</span>
+          </div>
+        }
+        style={{ marginTop: '24px' }}
+      >
+        <Table 
+          dataSource={processedData} 
+          columns={tableColumns} 
+          rowKey="url"
+          pagination={{ pageSize: 15 }}
+          scroll={{ x: 'max-content' }}
+        />
+      </Card>
+    </div>
+  );
 };
 
 export default Dashboard;

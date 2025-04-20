@@ -110,6 +110,8 @@ class CrawlerService:
             # This should mirror the columns in your crawl_result table you want to fill
             data_to_save = {
                  'html': crawled_page.html,
+                 'ttfb_ms': getattr(crawled_page, 'ttfb', None),
+                 'render_time_ms': getattr(crawled_page, 'render_time', None)
                  # 'status_code': getattr(crawled_page, 'status_code', None),
                  # 'load_time_seconds': getattr(crawled_page, 'load_time_seconds', None),
                  # 'title': getattr(crawled_page, 'title', None),

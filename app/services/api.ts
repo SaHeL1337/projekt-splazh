@@ -1,4 +1,3 @@
-
 function FetchWithAuth(url: string | URL | Request, token: string | null, options: RequestInit | undefined) {
     console.log(token)
     if (options === undefined) {
@@ -13,7 +12,18 @@ function FetchWithAuth(url: string | URL | Request, token: string | null, option
         headers: {
             ...options.headers,
             Authorization: `Bearer ${token}`
-        }}).then(response => response.json());
-  }
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .catch(error => {
+        console.error("Error in fetch:", error);
+        throw error;
+    });
+}
 
-  export { FetchWithAuth };
+export { FetchWithAuth };

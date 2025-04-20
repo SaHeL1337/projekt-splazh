@@ -22,10 +22,12 @@ class ProjectNotification:
         self.message = message
 
 class crawledPage:
-    def __init__(self, url, html, projectNotifications):
+    def __init__(self, url, html, projectNotifications, ttfb=None, render_time=None):
         self.url = url
         self.html = html
         self.projectNotifications = projectNotifications
+        self.ttfb = ttfb  # Time to First Byte in seconds
+        self.render_time = render_time  # Time to complete render in seconds
 
 
 class Webcrawler:
@@ -123,6 +125,49 @@ class Webcrawler:
         """Set a callback function to be called after each page is crawled"""
         self.callback = callback
 
+    def get_ttfb(self):
+        """Calculate Time to First Byte (TTFB) from performance logs"""
+        logs = self.get_performance_logs()
+        request_time = None
+        response_time = None
+        
+        for entry in logs:
+            try:
+                message = json.loads(entry["message"])["message"]
+                
+                # Find request sent timestamp
+                if message["method"] == "Network.requestWillBeSent" and message["params"].get("documentURL") == self.driver.current_url:
+                    request_time = message["params"]["timestamp"]
+                
+                # Find first byte of response timestamp
+                if message["method"] == "Network.responseReceived" and message["params"].get("response", {}).get("url") == self.driver.current_url:
+                    response_time = message["params"]["timestamp"]
+                    # Once we find the main document response, we can break
+                    break
+                    
+            except (KeyError, json.JSONDecodeError):
+                continue
+                
+        if request_time and response_time:
+            return round((response_time - request_time) * 1000, 2)  # Convert to milliseconds and round
+        
+        return None
+        
+    def get_page_load_time(self):
+        """Calculate time to complete render using Navigation Timing API"""
+        try:
+            # Use Navigation Timing API to get accurate load times
+            navigation_start = self.driver.execute_script("return window.performance.timing.navigationStart")
+            dom_complete = self.driver.execute_script("return window.performance.timing.domComplete")
+            
+            if navigation_start and dom_complete:
+                # Convert to milliseconds
+                return round((dom_complete - navigation_start), 2)
+        except Exception as e:
+            logging.error(f"Error getting page load time: {e}")
+            
+        return None
+
     def navigate_to_url(self, url):
         """Navigate to a URL and handle redirects with improved detection"""
         # First check if this is a valid URL to crawl
@@ -130,7 +175,9 @@ class Webcrawler:
             return {
                 "redirected": False,
                 "continue": False,
-                "reason": "invalid_url_type"
+                "reason": "invalid_url_type",
+                "ttfb": None,
+                "render_time": None
             }
             
         # Clear the performance log cache when navigating to a new page
@@ -138,6 +185,8 @@ class Webcrawler:
         
         # Set a page load timeout to avoid getting stuck
         self.driver.set_page_load_timeout(30)
+        
+        navigation_start_time = time.time()
             
         try:
             self.driver.get(url)
@@ -146,8 +195,21 @@ class Webcrawler:
             return {
                 "redirected": False,
                 "continue": False,
-                "reason": "navigation_error"
+                "reason": "navigation_error",
+                "ttfb": None,
+                "render_time": None
             }
+        
+        # Calculate rendering time (wall clock)
+        render_time = round((time.time() - navigation_start_time) * 1000, 2)
+        
+        # Get more accurate TTFB from performance logs
+        ttfb = self.get_ttfb()
+        
+        # Try to get more accurate page load time from Navigation Timing API
+        page_load_time = self.get_page_load_time()
+        if page_load_time:
+            render_time = page_load_time
             
         current_url = self.driver.current_url
         
@@ -163,20 +225,26 @@ class Webcrawler:
                     "redirected": True,
                     "internal": True,
                     "target": current_url,
-                    "continue": True
+                    "continue": True,
+                    "ttfb": ttfb,
+                    "render_time": render_time
                 }
             else:
                 return {
                     "redirected": True,
                     "internal": False,
                     "target": current_url,
-                    "continue": False
+                    "continue": False,
+                    "ttfb": ttfb,
+                    "render_time": render_time
                 }
         
         # No significant redirect
         return {
             "redirected": False,
-            "continue": True
+            "continue": True,
+            "ttfb": ttfb,
+            "render_time": render_time
         }
 
     @lru_cache(maxsize=1000)
@@ -234,7 +302,7 @@ class Webcrawler:
                 # Skip malformed entries
                 continue
         
-        # Create and return a crawledPage object
+        # Create and return a crawledPage object with no performance metrics yet
         return crawledPage(current_url, self.driver.page_source, projectNotifications)
     
     def getInternalLinks(self):
@@ -672,6 +740,17 @@ class Webcrawler:
                     
                     # Scan for external resources
                     page = self.scanPageForExternalResources(current_url)
+                    
+                    # Add performance metrics
+                    page.ttfb = redirect_info.get("ttfb")
+                    page.render_time = redirect_info.get("render_time")
+                    
+                    # Print performance metrics in the log
+                    ttfb_str = f"{page.ttfb} ms" if page.ttfb else "N/A"
+                    render_time_str = f"{page.render_time} ms" if page.render_time else "N/A"
+                    print(f"Performance metrics for {current_url}:")
+                    print(f"  Time to First Byte (TTFB): {ttfb_str}")
+                    print(f"  Time to Complete Render: {render_time_str}")
                     
                     # Run all the other scans in parallel
                     parallel_scan_results = self.scan_page_parallel(current_url)
