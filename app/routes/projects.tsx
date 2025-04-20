@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Table, Row, Col, Form, Input, Button, Space, Card, message, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
-import { InfoCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { InfoCircleOutlined, CheckCircleOutlined, DashboardOutlined, ClockCircleOutlined } from '@ant-design/icons';
 
 import { FetchWithAuth } from '../services/api'
 
@@ -53,6 +53,34 @@ const validateUrl = (url: string) => {
   }
 };
 
+// Helper function to format relative time
+const getRelativeTime = (timestamp: string): string => {
+  if (!timestamp) return "Not crawled yet";
+  
+  const now = new Date();
+  const crawlTime = new Date(timestamp);
+  
+  // Calculate time difference in milliseconds
+  const diffMs = now.getTime() - crawlTime.getTime();
+  
+  // Convert to seconds, minutes, hours, days
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  // Format the relative time string
+  if (diffDays > 0) {
+    return diffDays === 1 ? "1 day ago" : `${diffDays} days ago`;
+  } else if (diffHours > 0) {
+    return diffHours === 1 ? "1 hour ago" : `${diffHours} hours ago`;
+  } else if (diffMinutes > 0) {
+    return diffMinutes === 1 ? "1 minute ago" : `${diffMinutes} minutes ago`;
+  } else {
+    return diffSeconds <= 10 ? "just now" : `${diffSeconds} seconds ago`;
+  }
+};
+
 export default function Projects({ loaderData }: Route.ComponentProps) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const navigate = useNavigate();
@@ -85,6 +113,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
         id: project.id,
         url: project.url,
         lastCrawl: project.lastcrawl || "Not crawled yet",
+        lastCrawlRaw: project.lastcrawl || null, // Keep the raw timestamp for tooltip
       }));
       
       setProjects(formattedProjects);
@@ -237,13 +266,38 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
       title: 'Last Crawl',
       dataIndex: 'lastCrawl',
       key: 'lastCrawl',
+      render: (lastCrawl: string, record: any) => {
+        if (!record.lastCrawlRaw) {
+          return <span style={{ color: '#8c8c8c' }}>Not crawled yet</span>;
+        }
+        
+        const relativeTime = getRelativeTime(record.lastCrawlRaw);
+        const exactTime = new Date(record.lastCrawlRaw).toLocaleString();
+        
+        return (
+          <Tooltip title={`Exact time: ${exactTime}`}>
+            <span style={{ display: 'flex', alignItems: 'center', cursor: 'default' }}>
+              <ClockCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+              {relativeTime}
+            </span>
+          </Tooltip>
+        );
+      }
     },
     {
       title: 'Action',
       key: 'action',
-      width: '25%',
+      width: '30%',
       render: (_: any, record: any) => (
         <Space>
+          <Button 
+            type="primary"
+            icon={<DashboardOutlined />}
+            onClick={() => navigate(`/dashboard/project/${record.id}`)}
+            disabled={deletingId === record.id || editingId === record.id}
+          >
+            Dashboard
+          </Button>
           <Button 
             type="default"  
             onClick={() => handleUpdate(record.id)}
@@ -270,7 +324,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
     <div>
     <Space direction="vertical" size="large" style={{ display: 'flex' }}>
     <Row justify="center">
-      <Col span={12}>
+      <Col span={24}>
         <Table 
           dataSource={projects} 
           columns={columns} 
@@ -282,7 +336,7 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
     </Row>
 
     <Row justify="center">
-      <Col span={12}>
+      <Col span={24}>
       <Card
         size="small"
         title="New Project"

@@ -1,8 +1,7 @@
-
-import { Layout as L} from 'antd';
-const { Footer } = L;
-export default function MyFooter(){
-   return <Footer className="footer" style={{ textAlign: 'center' }}>
-          SaHeL1337 ©{new Date().getFullYear()}
-        </Footer>
+export default function MyFooter() {
+  return (
+    <div style={{ textAlign: 'center', padding: '12px 0', marginTop: '24px' }}>
+      SaHeL1337 ©{new Date().getFullYear()}
+    </div>
+  );
 }

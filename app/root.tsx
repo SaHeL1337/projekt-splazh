@@ -43,7 +43,7 @@ function AppLayout() {
   return (
     <>
     <SignedIn>
-    <L style={{ height: "100vh" }}>
+    <L style={{ minHeight: "100vh" }}>
       <Menu/>
       <L className="layout">
         <MyHeader/>

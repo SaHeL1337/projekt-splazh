@@ -1,7 +1,7 @@
 import { Layout, Row, Col, Space, Divider, Popover, Button, Badge, Typography, Breadcrumb } from 'antd';
-import { SettingOutlined, NotificationOutlined, CrownOutlined, RocketOutlined, MenuOutlined } from '@ant-design/icons';
+import { SettingOutlined, NotificationOutlined, CrownOutlined, RocketOutlined, MenuOutlined, HomeOutlined } from '@ant-design/icons';
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { FetchWithAuth } from '../services/api';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -29,7 +29,12 @@ export default function MyHeader() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<'free' | 'premium' | null>(null);
   const [loading, setLoading] = useState(true);
   const { getToken } = useAuth();
+  const location = useLocation();
+  const params = useParams();
+  const navigate = useNavigate();
+  const [projectUrl, setProjectUrl] = useState<string | null>(null);
 
+  // Fetch subscription status
   useEffect(() => {
     const getSubscriptionStatus = async () => {
       try {
@@ -47,6 +52,77 @@ export default function MyHeader() {
 
     getSubscriptionStatus();
   }, [getToken]);
+
+  // Fetch project details when on a project dashboard
+  useEffect(() => {
+    const fetchProjectDetails = async () => {
+      if (params.id) {
+        try {
+          const token = await getToken();
+          const projectData = await FetchWithAuth(`/api/project?projectId=${params.id}`, token, {
+            method: "GET"
+          });
+          
+          if (projectData && projectData.url) {
+            setProjectUrl(projectData.url);
+          } else {
+            setProjectUrl(null);
+          }
+        } catch (error) {
+          console.error('Failed to fetch project details:', error);
+          setProjectUrl(null);
+        }
+      } else {
+        setProjectUrl(null);
+      }
+    };
+
+    if (location.pathname.includes('/dashboard/project/')) {
+      fetchProjectDetails();
+    } else {
+      setProjectUrl(null);
+    }
+  }, [params.id, location.pathname, getToken]);
+
+  // Generate breadcrumb items based on current location
+  const getBreadcrumbItems = () => {
+    const items = [];
+    
+    // Home item is always first
+    items.push({
+      title: <Link to="/projects"><HomeOutlined /> Home</Link>,
+    });
+    
+    // Add appropriate route segments
+    if (location.pathname.includes('/projects')) {
+      items.push({
+        title: 'Projects',
+        href: '/projects',
+      });
+    } else if (location.pathname.includes('/dashboard/project/')) {
+      items.push({
+        title: <Link to="/projects">Projects</Link>,
+      });
+      
+      items.push({
+        title: 'Dashboard',
+      });
+      
+      // Add project URL if available
+      if (projectUrl) {
+        const displayUrl = projectUrl.replace(/^https?:\/\//, '');
+        items.push({
+          title: displayUrl,
+        });
+      }
+    } else if (location.pathname.includes('/subscription')) {
+      items.push({
+        title: 'Subscription',
+      });
+    }
+    
+    return items;
+  };
 
   const handleSubscriptionVisibleChange = (visible: boolean) => {
     setSubscriptionVisible(visible);
@@ -75,7 +151,7 @@ export default function MyHeader() {
         {/* Breadcrumb on desktop, collapsible on mobile */}
         <Col xs={16} sm={16} md={18} lg={18} xl={18}>
           <Breadcrumb 
-            items={[{ title: 'Dashboard' }, { title: 'https://cloudvil.com'}]} 
+            items={getBreadcrumbItems()} 
             style={{ fontSize: '14px' }}
           />
         </Col>

@@ -1,7 +1,7 @@
 import { UploadOutlined, UserOutlined, VideoCameraOutlined, NotificationOutlined, SettingOutlined, CrownOutlined } from '@ant-design/icons';
 import { Layout as L, Menu as M, theme } from 'antd';
 const { Sider } = L;
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import React, { useState, useEffect } from 'react';
 import { FetchWithAuth } from '../services/api';
 import { useAuth } from '@clerk/clerk-react';
@@ -32,11 +32,6 @@ const Menu = () => {
   const isPremium = subscriptionStatus === 'premium';
 
   const items = [
-    {
-      label: <Link to="/dashboard/project">Dashboard</Link>,
-      key: 'dashboard',
-      icon: <UserOutlined />,
-    },
     {
       label: <Link to="/projects">Projects</Link>,
       key: 'projects',
