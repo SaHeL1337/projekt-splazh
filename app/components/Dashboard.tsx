@@ -342,10 +342,25 @@ const Dashboard: React.FC = () => {
       const response = await FetchWithAuth(`/api/crawl?projectId=${id}`, token, {
         method: "GET"
       });
-      setCrawlStatus({
-        status: response.status || 'idle',
-        pagesCrawled: response.pagesCrawled ?? 0
-      });
+      
+      const previousStatus = crawlStatus.status;
+      const newStatus = response.status || 'idle';
+      
+      // Only update state if there's a change to avoid unnecessary re-renders
+      if (previousStatus !== newStatus || crawlStatus.pagesCrawled !== response.pagesCrawled) {
+        setCrawlStatus({
+          status: newStatus,
+          pagesCrawled: response.pagesCrawled ?? 0
+        });
+        
+        // Only refresh notifications when status changes from crawling/queued to completed
+        if (
+          (previousStatus === 'crawling' || previousStatus === 'in progress') && 
+          newStatus === 'completed'
+        ) {
+          fetchNotifications(id);
+        }
+      }
     } catch (error) {
       console.error("Failed to poll crawl status:", error);
     }
@@ -449,15 +464,17 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const fetchNotifications = async (projectId: string) => {
+  const fetchNotifications = async (projectId: string): Promise<any> => {
     setLoadingNotifications(true);
     try {
       const token = await getToken();
       const data = await FetchWithAuth(`/api/notifications?projectId=${projectId}`, token, {});
       setNotifications(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch notifications:", error);
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
       setNotifications([]);
+      throw err;
     } finally {
       setLoadingNotifications(false);
     }
@@ -475,6 +492,10 @@ const Dashboard: React.FC = () => {
       });
       setCrawlStatus(prev => ({...prev, status: 'queued'}));
       message.success('Crawl queued!');
+      
+      // Refresh notifications when a crawl is queued
+      fetchNotifications(id);
+      
       setTimeout(pollCrawlStatus, 1500);
     } catch (error) {
       console.error("Failed to queue crawl:", error);
@@ -762,16 +783,21 @@ const Dashboard: React.FC = () => {
       <div style={{ marginTop: '24px', width: '100%' }}>
         <Card 
           title={
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <WarningOutlined style={{ color: '#faad14', marginRight: '8px' }} />
-              <span style={{ fontWeight: 600, fontSize: '16px' }}>Notifications by Category</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <WarningOutlined style={{ color: '#faad14', marginRight: '8px' }} />
+                <span style={{ fontWeight: 600, fontSize: '16px' }}>Notifications by Category</span>
+              </div>
             </div>
           } 
           className="shadow-md rounded-lg"
           bordered={true}
           bodyStyle={{ padding: '20px' }}
         >
-          <NotificationsByCategory projectId={Number(id)} />
+          <NotificationsByCategory 
+            projectId={Number(id)} 
+            onRefresh={() => fetchNotifications(id as string)}
+          />
         </Card>
       </div>
     </div>
@@ -779,12 +805,14 @@ const Dashboard: React.FC = () => {
 };
 
 // New component for showing notifications by category
-const NotificationsByCategory: React.FC<{ projectId: number }> = ({ projectId }) => {
+const NotificationsByCategory: React.FC<{ projectId: number; onRefresh: () => void }> = ({ projectId, onRefresh }) => {
   const { getToken } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showExplanation, setShowExplanation] = useState(false);
   
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -795,12 +823,32 @@ const NotificationsByCategory: React.FC<{ projectId: number }> = ({ projectId })
       const token = await getToken();
       const data = await FetchWithAuth(`/api/notifications?projectId=${projectId}`, token, {});
       setNotifications(Array.isArray(data) ? data : []);
+      return data;
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
       setError("Could not load notifications.");
       setNotifications([]);
+      throw err;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Refresh notifications
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    
+    setRefreshing(true);
+    message.info('Refreshing notifications...');
+    
+    try {
+      await fetchNotifications();
+      message.success('Notifications refreshed');
+      onRefresh && onRefresh(); // Call parent refresh if provided
+    } catch (err) {
+      message.error('Failed to refresh notifications');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -864,6 +912,42 @@ const NotificationsByCategory: React.FC<{ projectId: number }> = ({ projectId })
     setSelectedCategory(category === selectedCategory ? null : category);
   };
 
+  // Get category explanation
+  const getCategoryExplanation = (category: string): string => {
+    switch (category.toLowerCase()) {
+      case 'redirect':
+        return 'Redirects can impact user experience and SEO. Too many redirects slow down page loading and can confuse search engines. Proper redirect management ensures visitors and search engines can navigate your site efficiently.';
+      case 'external_resource':
+        return 'External resources such as third-party scripts, images, or stylesheets can introduce performance, security, and privacy issues. They may also trigger GDPR compliance requirements if they transfer user data.';
+      case 'crawl_error':
+        return 'Crawl errors prevent search engines from properly indexing your site, reducing your visibility in search results. Fixing these ensures your content is fully discoverable.';
+      case 'accessibility':
+        return 'Accessibility issues can prevent users with disabilities from using your site effectively. Addressing these improves user experience for all visitors and helps comply with accessibility regulations like WCAG and ADA.';
+      case 'seo':
+        return 'SEO issues can negatively impact your search engine rankings. Addressing these helps improve your visibility in search results and drives more organic traffic to your site.';
+      case 'error_4xx':
+        return '4xx errors (like 404 Not Found) indicate client-side problems. These create poor user experience and waste crawl budget, potentially hurting your SEO performance.';
+      case 'error_5xx':
+        return '5xx errors indicate server-side problems. These severely impact user experience and can cause search engines to reduce crawling of your site, affecting your SEO performance.';
+      case 'broken_link':
+        return 'Broken links frustrate users and damage your site\'s credibility. They also waste crawl budget and can negatively impact your SEO rankings.';
+      case 'large_image':
+        return 'Oversized images slow down page loading, leading to higher bounce rates and poor user experience. Optimizing images improves page speed, which is a ranking factor for search engines.';
+      case 'noindex':
+        return 'The noindex tag prevents search engines from indexing a page. This can be intentional, but if used incorrectly, important pages may be excluded from search results.';
+      case 'nofollow':
+        return 'The nofollow attribute prevents search engines from following links. This affects how PageRank flows through your site and can impact SEO if used incorrectly.';
+      case 'h1_missing':
+        return 'H1 headings are crucial for both users and search engines to understand the main topic of your page. Missing H1s can hurt your SEO and make pages harder to navigate.';
+      case 'multiple_h1':
+        return 'Multiple H1 headings on a single page can confuse search engines about the main topic. For optimal SEO, each page should have exactly one H1 heading.';
+      case 'no_https':
+        return 'HTTPS is essential for security and is a ranking factor for search engines. Sites without HTTPS may display security warnings to users and receive lower rankings in search results.';
+      default:
+        return 'This category of issues can affect your website\'s performance, user experience, or compliance with web standards. Addressing these issues will improve overall site quality.';
+    }
+  };
+
   if (loading && notifications.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -891,12 +975,18 @@ const NotificationsByCategory: React.FC<{ projectId: number }> = ({ projectId })
       <Empty 
         description="No notifications found for this project" 
         image={Empty.PRESENTED_IMAGE_SIMPLE}
+        style={{ margin: '20px 0' }}
       />
     );
   }
 
   return (
     <div style={{ width: '100%', maxWidth: '100%' }}>
+      {/* Categories header */}
+      <div style={{ marginBottom: '16px' }}>
+        <Text strong>Select a category to view details</Text>
+      </div>
+
       {/* Categories as panels */}
       <Row gutter={[16, 16]} style={{ width: '100%', margin: 0 }}>
         {categoriesWithCounts.map(({ category, count, color, severity }) => (
@@ -955,17 +1045,40 @@ const NotificationsByCategory: React.FC<{ projectId: number }> = ({ projectId })
             paddingBottom: '12px',
             borderBottom: '1px solid #f0f0f0'
           }}>
-            <Title level={5} style={{ margin: 0 }}>
-              URLs with {selectedCategory.replace(/_/g, ' ')} issues
-            </Title>
-            <Button 
-              size="small" 
-              onClick={() => setSelectedCategory(null)}
-              icon={<ArrowLeftOutlined />}
-            >
-              Back to all categories
-            </Button>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Button 
+                type="text" 
+                icon={<ArrowLeftOutlined />} 
+                onClick={() => setSelectedCategory(null)}
+                style={{ marginRight: '8px', padding: '0 4px' }}
+              />
+              <Title level={5} style={{ margin: 0 }}>
+                URLs with {selectedCategory.replace(/_/g, ' ')} issues
+              </Title>
+            </div>
+            <div>
+              <Button 
+                size="small" 
+                type="link"
+                onClick={() => setShowExplanation(!showExplanation)}
+                icon={<InfoCircleOutlined />}
+              >
+                Why is this important?
+              </Button>
+            </div>
           </div>
+
+          {showExplanation && (
+            <Alert
+              message={`About ${selectedCategory.replace(/_/g, ' ')} issues`}
+              description={getCategoryExplanation(selectedCategory)}
+              type="info"
+              showIcon
+              style={{ marginBottom: '16px' }}
+              closable
+              onClose={() => setShowExplanation(false)}
+            />
+          )}
 
           <List
             dataSource={urlsByCategory}
